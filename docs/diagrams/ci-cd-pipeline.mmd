@@ -1,0 +1,7 @@
+flowchart TB
+    push["push to dev / qa / master"] --> ci["CI - verify<br/>lint, build, unit tests, acceptance tests"]
+    ci -->|"success"| cd["CD - deploy<br/>bundle, OIDC, serverless deploy"]
+    cd --> mig["migrate"]
+    mig --> smoke["smoke test"]
+    smoke --> summary["summary in the run"]
+    ci -->|"failure"| stop["the deployment never starts"]

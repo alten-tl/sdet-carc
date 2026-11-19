@@ -1,0 +1,19 @@
+flowchart TB
+    subgraph stack["CloudFormation stack: appointments-dev"]
+        apigw["API Gateway HTTP API"]
+        api["Lambda appointments-dev-api (1024 MB)"]
+        svc["Lambda appointments-dev-appointments (512 MB)"]
+        mig["Lambda appointments-dev-migrate"]
+        seed["Lambda appointments-dev-seed"]
+    end
+    sm["Secrets Manager: appointments/database-url"]
+    pg[("PostgreSQL 18 - Coolify")]
+    cw["CloudWatch Logs (14 days) + X-Ray"]
+    apigw --> api
+    api -->|"InvokeCommand"| svc
+    svc --> sm
+    svc --> pg
+    mig --> sm
+    seed --> sm
+    api -.-> cw
+    svc -.-> cw

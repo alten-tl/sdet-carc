@@ -1,0 +1,21 @@
+sequenceDiagram
+    autonumber
+    participant C as Client
+    participant A as Lambda api
+    participant S as Lambda appointments
+    participant P as PostgreSQL
+    C->>A: POST /api/v1/appointments
+    A->>A: Validate the body with Zod
+    A->>S: Invoke { type: "appointments.create", payload }
+    S->>P: SELECT overlapping appointments
+    P-->>S: 0 rows
+    S->>P: INSERT INTO appointments
+    alt SQLSTATE 23P01 (exclusion violation)
+        P-->>S: slot taken
+        S-->>A: { ok: false, error: SLOT_NOT_AVAILABLE }
+        A-->>C: 409 problem+json
+    else inserted
+        P-->>S: row
+        S-->>A: { ok: true, data: Appointment }
+        A-->>C: 201 Created
+    end

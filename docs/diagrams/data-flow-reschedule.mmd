@@ -1,0 +1,25 @@
+sequenceDiagram
+    autonumber
+    participant C as Client
+    participant A as Lambda api
+    participant S as Lambda appointments
+    participant P as PostgreSQL
+    C->>A: PATCH /api/v1/appointments/{id}
+    A->>A: Validate the uuid and the body
+    A->>S: Invoke { type: "appointments.reschedule", payload }
+    S->>P: SELECT WHERE id = $1
+    alt Not found
+        P-->>S: 0 rows
+        S-->>A: APPOINTMENT_NOT_FOUND
+        A-->>C: 404 problem+json
+    else Already cancelled
+        P-->>S: status = DESHABILITADA
+        S-->>A: APPOINTMENT_ALREADY_CANCELLED
+        A-->>C: 409 problem+json
+    else Enabled
+        P-->>S: row
+        S->>P: SELECT overlapping (excluding itself)
+        S->>P: UPDATE appointments
+        S-->>A: { ok: true, data: Appointment }
+        A-->>C: 200 OK
+    end

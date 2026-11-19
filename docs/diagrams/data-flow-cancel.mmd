@@ -1,0 +1,14 @@
+sequenceDiagram
+    autonumber
+    participant C as Client
+    participant A as Lambda api
+    participant S as Lambda appointments
+    participant P as PostgreSQL
+    C->>A: DELETE /api/v1/appointments/{id}
+    A->>A: Validate the uuid
+    A->>S: Invoke { type: "appointments.cancel", payload }
+    S->>P: SELECT WHERE id = $1
+    S->>S: Appointment.cancel() -> DESHABILITADA
+    S->>P: UPDATE status, updated_at
+    S-->>A: { ok: true, data: Appointment }
+    A-->>C: 200 OK

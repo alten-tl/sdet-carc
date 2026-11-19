@@ -24,7 +24,13 @@ ROLE_NAME="${DEPLOY_ROLE_NAME:-appointments-deploy}"
 STAGES="${DEPLOY_STAGES:-dev qa prod}"
 DEPLOY_BRANCHES="${DEPLOY_BRANCHES:-dev qa master}"
 OIDC_URL="https://token.actions.githubusercontent.com"
-THUMBPRINTS="1b511abead59c6ce207077c0bf0e0043b1382612"
+
+# The provider can be created for the whole GitHub issuer or restricted to a
+# repository path. The host wide one is the default because AWS retrieves and
+# rotates its thumbprint by itself: a provider created with an explicit
+# thumbprint stops validating the tokens when the issuer renews its
+# certificate.
+PROVIDER_SCOPE="${OIDC_PROVIDER_SCOPE:-host}"
 
 if [ -z "${GITHUB_OWNER:-}" ] || [ -z "${GITHUB_REPO:-}" ]; then
   echo "GITHUB_OWNER and GITHUB_REPO are required." >&2
@@ -42,21 +48,47 @@ if ! aws sts get-caller-identity > /dev/null 2>&1; then
 fi
 
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-PROVIDER_URL="${OIDC_URL}/${GITHUB_OWNER}/${GITHUB_REPO}"
+
+if [ "$PROVIDER_SCOPE" = "host" ]; then
+  PROVIDER_URL="$OIDC_URL"
+else
+  PROVIDER_URL="${OIDC_URL}/${GITHUB_OWNER}/${GITHUB_REPO}"
+fi
 
 # 1. OIDC provider -------------------------------------------------------
-PROVIDER_ARN=$(aws iam list-open-id-connect-providers \
-  --query "OpenIDConnectProviderList[?ends_with(Arn, '${GITHUB_OWNER}/${GITHUB_REPO}')].Arn | [0]" \
-  --output text)
+if [ "$PROVIDER_SCOPE" = "host" ]; then
+  PROVIDER_ARN=$(aws iam list-open-id-connect-providers \
+    --query "OpenIDConnectProviderList[?ends_with(Arn, 'token.actions.githubusercontent.com')].Arn | [0]" \
+    --output text)
+else
+  PROVIDER_ARN=$(aws iam list-open-id-connect-providers \
+    --query "OpenIDConnectProviderList[?ends_with(Arn, '${GITHUB_OWNER}/${GITHUB_REPO}')].Arn | [0]" \
+    --output text)
+fi
 
 if [ -z "$PROVIDER_ARN" ] || [ "$PROVIDER_ARN" = "None" ]; then
-  echo "Creating the OIDC provider $PROVIDER_URL ..."
-  PROVIDER_ARN=$(aws iam create-open-id-connect-provider \
-    --url "$PROVIDER_URL" \
-    --client-id-list sts.amazonaws.com \
-    --thumbprint-list "$THUMBPRINTS" \
-    --query OpenIDConnectProviderArn \
-    --output text)
+  if [ "$PROVIDER_SCOPE" = "host" ]; then
+    echo "Creating the OIDC provider $PROVIDER_URL ..."
+    PROVIDER_ARN=$(aws iam create-open-id-connect-provider \
+      --url "$PROVIDER_URL" \
+      --client-id-list sts.amazonaws.com \
+      --query OpenIDConnectProviderArn \
+      --output text)
+  else
+    # A repository scoped provider cannot be validated by AWS, so the
+    # thumbprint of the issuer certificate has to be provided. It is read from
+    # the live certificate to avoid a stale value after a rotation.
+    echo "Creating the OIDC provider $PROVIDER_URL ..."
+    THUMBPRINT=$(echo | openssl s_client -connect token.actions.githubusercontent.com:443 \
+      -servername token.actions.githubusercontent.com 2> /dev/null \
+      | openssl x509 -noout -fingerprint -sha1 | sed 's/.*=//; s/://g')
+    PROVIDER_ARN=$(aws iam create-open-id-connect-provider \
+      --url "$PROVIDER_URL" \
+      --client-id-list sts.amazonaws.com \
+      --thumbprint-list "$THUMBPRINT" \
+      --query OpenIDConnectProviderArn \
+      --output text)
+  fi
 else
   echo "OIDC provider already exists: $PROVIDER_ARN"
 fi

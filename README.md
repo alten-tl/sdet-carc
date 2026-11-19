@@ -10,24 +10,58 @@ separate Lambda functions**, and PostgreSQL holds the data.
   PostgreSQL. It is invoked synchronously through the Lambda Invoke API.
 - **PostgreSQL**: the source of truth.
 
+## Live environment
+
+The API is **fully deployed** and can be tested end to end:
+
+| Resource | URL |
+| --- | --- |
+| **Interactive documentation (Scalar)** | <https://5sg14jfok6.execute-api.us-east-1.amazonaws.com/api/docs> |
+| API base URL | <https://5sg14jfok6.execute-api.us-east-1.amazonaws.com/api/v1> |
+| OpenAPI document | <https://5sg14jfok6.execute-api.us-east-1.amazonaws.com/api/openapi.json> |
+
+```bash
+curl "https://5sg14jfok6.execute-api.us-east-1.amazonaws.com/api/v1/appointments?date=2026-01-15"
+```
+
+## Documentation
+
+The detailed documentation lives in [`docs/`](docs/README.md):
+
+| Document | Content |
+| --- | --- |
+| [docs/architecture/overview.md](docs/architecture/overview.md) | The architecture, with the Mermaid diagrams of the context, the containers and the components |
+| [docs/architecture/data-flow.md](docs/architecture/data-flow.md) | The flow of every operation, from HTTP to SQL |
+| [docs/architecture/database.md](docs/architecture/database.md) | The data model, the migrations and the constraints |
+| [docs/architecture/deployment.md](docs/architecture/deployment.md) | The AWS topology, the packaging and the CI/CD pipeline |
+| [docs/decisions/](docs/decisions/README.md) | The architecture decision records: why each technology was chosen |
+| [docs/api/](docs/api/endpoints.md) | The endpoints, the error catalogue and the OpenAPI document |
+| [docs/testing/strategy.md](docs/testing/strategy.md) | The test strategy and the suites |
+| [docs/operations/](docs/operations/runbook.md) | The runbook, the local development guide and the costs |
+| [docs/roadmap.md](docs/roadmap.md) | The recommended next steps |
+
 ## Architecture
 
-```
-            ┌────────────────────┐
- client ──▶ │ API Gateway (HTTP) │
-            └─────────┬──────────┘
-                      │ REST (NestJS)
-            ┌─────────▼──────────┐
-            │ Lambda: api        │  validation, RFC 9457 errors, OpenAPI
-            └─────────┬──────────┘
-                      │ lambda:Invoke (RequestResponse)
-            ┌─────────▼──────────┐
-            │ Lambda: appointments│  domain rules, use cases, persistence
-            └─────────┬──────────┘
-                      │ PostgreSQL (TLS)
-            ┌─────────▼──────────┐
-            │ PostgreSQL 17      │
-            └────────────────────┘
+```mermaid
+flowchart LR
+    client["📱 Client"]
+    subgraph aws["☁️ AWS — us-east-1"]
+        gw["🌐 API Gateway<br/>HTTP API"]
+        api["⚡ Lambda: api<br/><i>NestJS, validation, RFC 9457, OpenAPI</i>"]
+        svc["⚡ Lambda: appointments<br/><i>domain rules, use cases, persistence</i>"]
+        pg[("🐘 PostgreSQL")]
+    end
+
+    client -->|"HTTPS / JSON"| gw
+    gw --> api
+    api -->|"lambda:Invoke (RequestResponse)"| svc
+    svc --> pg
+
+    style client fill:#f5f5f5,stroke:#333,color:#000
+    style gw fill:#232f3e,stroke:#ff9900,color:#fff
+    style api fill:#ff9900,stroke:#232f3e,color:#fff
+    style svc fill:#ff9900,stroke:#232f3e,color:#fff
+    style pg fill:#2e73b8,stroke:#232f3e,color:#fff
 ```
 
 The API never touches the database: it only knows the command contract
@@ -334,3 +368,36 @@ artifacts work in both cases.
 - Logs are kept for 14 days in CloudWatch.
 - The API never leaks internal error details: an upstream failure is logged
   with the original message and answered with a generic problem document.
+
+## Version control
+
+The technical statement asks for the commits to follow
+`[nombre-del-módulo] - Descripción corta del commit`, for example:
+
+```text
+appointments - Add the reschedule endpoint
+ci - Fix the timeout of the acceptance tests
+```
+
+The repository currently uses the Conventional Commits style
+(`scope: description`), which is equivalent in spirit but **does not match the
+requested format literally**. Two ways to close the gap:
+
+1. Rename the history of the branch (`git rebase -i` with `reword`) to use
+   the requested format.
+2. Adopt Conventional Commits formally and customise the commit linter to
+   validate the `[módulo] - Descripción` grammar.
+
+Both options are described in [docs/roadmap.md](docs/roadmap.md), together
+with the semantic release and the branch protection that would follow.
+
+### Branches
+
+| Branch   | Purpose                                        | Stage  |
+| -------- | ---------------------------------------------- | ------ |
+| `dev`    | Integration branch, deployed continuously      | `dev`  |
+| `qa`     | Validation branch, deployed before the release | `qa`   |
+| `master` | Production                                     | `prod` |
+
+The changes travel in a **change train**: a module is finished, reviewed and
+merged before the next one starts.

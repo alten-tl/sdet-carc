@@ -1,0 +1,20 @@
+flowchart TB
+    client["Client<br/>(curl, browser, mobile app)"]
+    subgraph aws["AWS - account 550711951109, us-east-1"]
+        apigw["API Gateway HTTP API"]
+        api["Lambda: api (NestJS)"]
+        svc["Lambda: appointments (domain + persistence)"]
+        secret["Secrets Manager"]
+        logs["CloudWatch + X-Ray"]
+    end
+    subgraph coolify["Coolify VPS"]
+        pg[("PostgreSQL 18")]
+    end
+
+    client -->|"HTTPS / JSON"| apigw
+    apigw --> api
+    api -->|"lambda:Invoke"| svc
+    svc --> secret
+    svc --> pg
+    api -.-> logs
+    svc -.-> logs

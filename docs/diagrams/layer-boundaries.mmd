@@ -1,0 +1,7 @@
+flowchart LR
+    api["api/**"] -->|"allowed"| contracts["contracts/**"]
+    api -->|"allowed"| lambda["lambda/**"]
+    lambda -->|"allowed"| contracts
+    contracts -->|"forbidden"| api
+    contracts -->|"forbidden"| lambda
+    lambda -->|"forbidden"| api

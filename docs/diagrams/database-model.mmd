@@ -1,0 +1,30 @@
+erDiagram
+    CLIENTS ||--o{ APPOINTMENTS : "books"
+    VEHICLES ||--o{ APPOINTMENTS : "is booked for"
+    CLIENTS {
+        uuid id PK
+        text name
+        text timezone
+        text address
+    }
+    VEHICLES {
+        uuid id PK
+        text vin UK
+        text plates
+        text color
+        int year
+        text model
+    }
+    APPOINTMENTS {
+        uuid id PK
+        uuid client_id FK
+        uuid vehicle_id FK
+        date appointment_date
+        time start_time
+        timestamptz starts_at
+        timestamptz ends_at
+        text comments
+        appointment_status status
+        timestamptz created_at
+        timestamptz updated_at
+    }

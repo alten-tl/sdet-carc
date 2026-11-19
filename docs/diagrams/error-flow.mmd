@@ -1,0 +1,4 @@
+flowchart LR
+    domain["DomainError<br/>(SlotNotAvailableError)"] --> internal["CommandResult<br/>{ ok: false, error }"]
+    internal --> api["ApiProblem<br/>(code + detail)"]
+    api --> problem["RFC 9457 document<br/>application/problem+json"]

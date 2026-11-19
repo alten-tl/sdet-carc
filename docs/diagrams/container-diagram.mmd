@@ -1,0 +1,23 @@
+flowchart TB
+    subgraph apiLambda["Lambda: api"]
+        ctrl["Controllers"]
+        pipes["StandardSchemaValidationPipe (Zod)"]
+        filter["ApiExceptionFilter (RFC 9457)"]
+        service["AppointmentsService"]
+        gateway["CommandGateway (InvokeCommand)"]
+        ctrl --> pipes --> service --> gateway
+        ctrl -.-> filter
+    end
+    subgraph svcLambda["Lambda: appointments"]
+        handler["Command handler"]
+        usecases["Use cases"]
+        domain["Domain"]
+        repo["AppointmentRepository (TypeORM)"]
+        db[("PostgreSQL")]
+        handler --> usecases --> domain
+        usecases --> repo --> db
+    end
+    contracts["@contracts<br/>(commands, payloads, errors, problem details)"]
+    gateway -.->|"CommandEnvelope"| handler
+    contracts -.-> apiLambda
+    contracts -.-> svcLambda
