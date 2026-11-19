@@ -4,9 +4,12 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Param,
+  Patch,
   Post,
   Query,
 } from '@nestjs/common';
+import { z } from 'zod';
 import {
   ApiBadRequestResponse,
   ApiConflictResponse,
@@ -19,10 +22,12 @@ import {
 import {
   CREATE_APPOINTMENT_PAYLOAD_SCHEMA,
   LIST_APPOINTMENTS_BY_DATE_PAYLOAD_SCHEMA,
+  RESCHEDULE_APPOINTMENT_REQUEST_SCHEMA,
 } from '@contracts/appointments';
 import type {
   CreateAppointmentPayload,
   ListAppointmentsByDatePayload,
+  RescheduleAppointmentRequest,
 } from '@contracts/appointments';
 import { AppointmentsService } from '@api/application/appointments/appointments.service';
 import {
@@ -79,5 +84,34 @@ export class AppointmentsController {
     body: CreateAppointmentPayload,
   ): Promise<AppointmentResponse> {
     return this.appointmentsService.create(body);
+  }
+
+  @Patch(':id')
+  @ApiOperation({
+    summary: 'Update the date of an existing appointment',
+    description:
+      'Moves an appointment to another time slot. The appointment keeps its ' +
+      'current time when only a date is given, and its current date when ' +
+      'only a time is given.',
+  })
+  @ApiOkResponse({
+    description: 'The appointment that was updated',
+    schema: zodToOpenApi(AppointmentResponseSchema, 'output'),
+  })
+  @ApiBadRequestResponse(
+    problemResponse('The request payload is not valid'),
+  )
+  @ApiConflictResponse(
+    problemResponse(
+      'The requested time slot is already taken or the appointment is already cancelled',
+    ),
+  )
+  @ApiNotFoundResponse(problemResponse('The appointment does not exist'))
+  async reschedule(
+    @Param('id', { schema: z.uuid() }) id: string,
+    @Body({ schema: RESCHEDULE_APPOINTMENT_REQUEST_SCHEMA })
+    body: RescheduleAppointmentRequest,
+  ): Promise<AppointmentResponse> {
+    return this.appointmentsService.reschedule(id, body);
   }
 }

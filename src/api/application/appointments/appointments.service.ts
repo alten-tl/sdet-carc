@@ -4,8 +4,12 @@ import {
   AppointmentSchema,
   CREATE_APPOINTMENT_PAYLOAD_SCHEMA,
   LIST_APPOINTMENTS_BY_DATE_PAYLOAD_SCHEMA,
+  RESCHEDULE_APPOINTMENT_PAYLOAD_SCHEMA,
 } from '@contracts/appointments';
-import type { CreateAppointmentPayload } from '@contracts/appointments';
+import type {
+  CreateAppointmentPayload,
+  RescheduleAppointmentRequest,
+} from '@contracts/appointments';
 import { AppointmentListResponseSchema } from '@api/contracts/appointments.response';
 import type { AppointmentListResponse } from '@api/contracts/appointments.response';
 import { AppointmentResponseSchema } from '@api/contracts/appointments.response';
@@ -37,6 +41,24 @@ export class AppointmentsService {
       {
         type: 'appointments.create',
         payload: CREATE_APPOINTMENT_PAYLOAD_SCHEMA.parse(payload),
+      },
+      AppointmentSchema,
+    );
+
+    return AppointmentResponseSchema.parse(data);
+  }
+
+  async reschedule(
+    id: string,
+    payload: RescheduleAppointmentRequest,
+  ): Promise<AppointmentResponse> {
+    const data = await this.commandGateway.execute(
+      {
+        type: 'appointments.reschedule',
+        payload: RESCHEDULE_APPOINTMENT_PAYLOAD_SCHEMA.parse({
+          id,
+          ...payload,
+        }),
       },
       AppointmentSchema,
     );

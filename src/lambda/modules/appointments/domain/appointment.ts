@@ -1,4 +1,5 @@
 import { AppointmentStatus } from '@contracts/appointments/appointment-status';
+import { AppointmentAlreadyCancelledError } from './errors';
 
 export interface AppointmentProps {
   id: string;
@@ -12,6 +13,13 @@ export interface AppointmentProps {
   comments: string | null;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface AppointmentSlot {
+  date: string;
+  time: string;
+  startsAt: Date;
+  endsAt: Date;
 }
 
 export class Appointment {
@@ -43,5 +51,25 @@ export class Appointment {
 
   get isEnabled(): boolean {
     return this.status === 'HABILITADA';
+  }
+
+  reschedule(slot: AppointmentSlot, updatedAt: Date): Appointment {
+    if (!this.isEnabled) {
+      throw new AppointmentAlreadyCancelledError(this.id);
+    }
+
+    return new Appointment({
+      id: this.id,
+      clientId: this.clientId,
+      vehicleId: this.vehicleId,
+      date: slot.date,
+      time: slot.time,
+      startsAt: slot.startsAt,
+      endsAt: slot.endsAt,
+      status: this.status,
+      comments: this.comments,
+      createdAt: this.createdAt,
+      updatedAt,
+    });
   }
 }

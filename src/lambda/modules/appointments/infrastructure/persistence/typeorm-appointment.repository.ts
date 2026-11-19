@@ -10,6 +10,14 @@ import { isSlotOverlapViolation } from './postgres-errors';
 export class TypeOrmAppointmentRepository implements AppointmentRepository {
   constructor(private readonly dataSource: DataSource) {}
 
+  async findById(id: string): Promise<Appointment | null> {
+    const row = await this.dataSource
+      .getRepository(AppointmentRecord)
+      .findOneBy({ id });
+
+    return row ? this.toDomain(row) : null;
+  }
+
   async findByDate(date: string): Promise<Appointment[]> {
     const rows = await this.dataSource
       .getRepository(AppointmentRecord)
@@ -21,16 +29,24 @@ export class TypeOrmAppointmentRepository implements AppointmentRepository {
     return rows.map((row) => this.toDomain(row));
   }
 
-  async findOverlapping(slot: TimeSlot): Promise<Appointment[]> {
-    const rows = await this.dataSource
+  async findOverlapping(
+    slot: TimeSlot,
+    excludeId?: string,
+  ): Promise<Appointment[]> {
+    const query = this.dataSource
       .getRepository(AppointmentRecord)
       .createQueryBuilder('appointment')
       .where('appointment.starts_at < :endsAt', { endsAt: slot.endsAt })
       .andWhere('appointment.ends_at > :startsAt', { startsAt: slot.startsAt })
       .andWhere('appointment.status = :status', {
         status: APPOINTMENT_STATUS.ENABLED,
-      })
-      .getMany();
+      });
+
+    if (excludeId) {
+      query.andWhere('appointment.id != :excludeId', { excludeId });
+    }
+
+    const rows = await query.getMany();
 
     return rows.map((row) => this.toDomain(row));
   }
@@ -50,6 +66,30 @@ export class TypeOrmAppointmentRepository implements AppointmentRepository {
         createdAt: appointment.createdAt,
         updatedAt: appointment.updatedAt,
       });
+    } catch (error) {
+      if (isSlotOverlapViolation(error)) {
+        throw new SlotNotAvailableError({
+          date: appointment.date,
+          time: appointment.time,
+        });
+      }
+
+      throw error;
+    }
+  }
+
+  async update(appointment: Appointment): Promise<void> {
+    try {
+      await this.dataSource.getRepository(AppointmentRecord).update(
+        { id: appointment.id },
+        {
+          appointmentDate: appointment.date,
+          startTime: appointment.time,
+          startsAt: appointment.startsAt,
+          endsAt: appointment.endsAt,
+          updatedAt: appointment.updatedAt,
+        },
+      );
     } catch (error) {
       if (isSlotOverlapViolation(error)) {
         throw new SlotNotAvailableError({

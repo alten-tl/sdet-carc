@@ -8,6 +8,7 @@ export class AppointmentWorld {
   response?: ApiResponse;
   responses: ApiResponse[] = [];
   storedError?: unknown;
+  appointmentId = '';
   clientId = '';
   vehicleId = '';
 }

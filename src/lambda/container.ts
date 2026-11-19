@@ -1,5 +1,6 @@
 import { DataSource } from 'typeorm';
 import { ListAppointmentsByDate } from '@lambda/modules/appointments/application/use-cases/list-appointments-by-date.use-case';
+import { RescheduleAppointment } from '@lambda/modules/appointments/application/use-cases/reschedule-appointment.use-case';
 import { CreateAppointment } from '@lambda/modules/appointments/application/use-cases/create-appointment.use-case';
 import { buildDataSourceOptions } from '@lambda/modules/appointments/infrastructure/persistence/datasource';
 import { TypeOrmAppointmentRepository } from '@lambda/modules/appointments/infrastructure/persistence/typeorm-appointment.repository';
@@ -13,6 +14,7 @@ export interface AppointmentsContainer {
   dataSource: DataSource;
   listAppointmentsByDate: ListAppointmentsByDate;
   createAppointment: CreateAppointment;
+  rescheduleAppointment: RescheduleAppointment;
 }
 
 const DEFAULT_SLOT_DURATION_MINUTES = 60;
@@ -38,6 +40,13 @@ export const createAppointmentsContainer = async (
       new SlotAvailabilityPolicy(),
       new SystemClock(),
       new UuidIdGenerator(),
+      { slotDurationMinutes },
+    ),
+    rescheduleAppointment: new RescheduleAppointment(
+      appointmentRepository,
+      clientRepository,
+      new SlotAvailabilityPolicy(),
+      new SystemClock(),
       { slotDurationMinutes },
     ),
   };

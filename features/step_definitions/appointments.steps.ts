@@ -20,6 +20,12 @@ const scheduleAppointment = async (
     body: response.body as Record<string, unknown>,
     contentType: response.headers['content-type'] ?? '',
   };
+
+  const id = world.response.body.id;
+
+  if (typeof id === 'string') {
+    world.appointmentId = id;
+  }
 };
 
 Given(

@@ -76,6 +76,17 @@ export const appointmentsLambdaHandler = async (
           data: AppointmentSchema.parse(toAppointmentDto(appointment)),
         };
       }
+
+      case 'appointments.reschedule': {
+        const appointment = await container.rescheduleAppointment.execute(
+          command.data.payload,
+        );
+
+        return {
+          ok: true,
+          data: AppointmentSchema.parse(toAppointmentDto(appointment)),
+        };
+      }
     }
   } catch (error) {
     if (error instanceof DomainError) {

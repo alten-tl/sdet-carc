@@ -21,6 +21,38 @@ export type CreateAppointmentPayload = z.infer<
   typeof CREATE_APPOINTMENT_PAYLOAD_SCHEMA
 >;
 
+export const RESCHEDULE_APPOINTMENT_REQUEST_SCHEMA = z
+  .object({
+    date: LOCAL_DATE_SCHEMA.optional(),
+    time: LOCAL_TIME_SCHEMA.optional(),
+  })
+  .refine((request) => request.date !== undefined || request.time !== undefined, {
+    message: 'At least one of date or time is required',
+    path: ['date'],
+  });
+
+export type RescheduleAppointmentRequest = z.infer<
+  typeof RESCHEDULE_APPOINTMENT_REQUEST_SCHEMA
+>;
+
+export const RESCHEDULE_APPOINTMENT_PAYLOAD_SCHEMA = z
+  .object({
+    id: z.uuid(),
+    date: LOCAL_DATE_SCHEMA.optional(),
+    time: LOCAL_TIME_SCHEMA.optional(),
+  })
+  .refine(
+    (payload) => payload.date !== undefined || payload.time !== undefined,
+    {
+      message: 'At least one of date or time is required',
+      path: ['date'],
+    },
+  );
+
+export type RescheduleAppointmentPayload = z.infer<
+  typeof RESCHEDULE_APPOINTMENT_PAYLOAD_SCHEMA
+>;
+
 export const LIST_APPOINTMENTS_BY_DATE_COMMAND_SCHEMA = z.object({
   type: z.literal('appointments.list'),
   payload: LIST_APPOINTMENTS_BY_DATE_PAYLOAD_SCHEMA,
@@ -31,9 +63,15 @@ export const CREATE_APPOINTMENT_COMMAND_SCHEMA = z.object({
   payload: CREATE_APPOINTMENT_PAYLOAD_SCHEMA,
 });
 
+export const RESCHEDULE_APPOINTMENT_COMMAND_SCHEMA = z.object({
+  type: z.literal('appointments.reschedule'),
+  payload: RESCHEDULE_APPOINTMENT_PAYLOAD_SCHEMA,
+});
+
 export const APPOINTMENTS_COMMAND_SCHEMA = z.discriminatedUnion('type', [
   LIST_APPOINTMENTS_BY_DATE_COMMAND_SCHEMA,
   CREATE_APPOINTMENT_COMMAND_SCHEMA,
+  RESCHEDULE_APPOINTMENT_COMMAND_SCHEMA,
 ]);
 
 export type AppointmentsCommand = z.infer<typeof APPOINTMENTS_COMMAND_SCHEMA>;

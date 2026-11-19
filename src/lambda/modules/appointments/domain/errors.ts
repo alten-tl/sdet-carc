@@ -41,3 +41,23 @@ export class VehicleNotFoundError extends DomainError {
     );
   }
 }
+
+export class AppointmentNotFoundError extends DomainError {
+  constructor(appointmentId: string) {
+    super(
+      APPOINTMENT_ERROR_CODES.APPOINTMENT_NOT_FOUND,
+      `The appointment ${appointmentId} does not exist.`,
+      { appointmentId },
+    );
+  }
+}
+
+export class AppointmentAlreadyCancelledError extends DomainError {
+  constructor(appointmentId: string) {
+    super(
+      APPOINTMENT_ERROR_CODES.APPOINTMENT_ALREADY_CANCELLED,
+      `The appointment ${appointmentId} is already cancelled.`,
+      { appointmentId },
+    );
+  }
+}
