@@ -28,7 +28,7 @@ npx serverless info --stage dev --region us-east-1
 # the public URL
 aws cloudformation describe-stacks \
   --stack-name appointments-dev \
-  --query "Stacks[0].Outputs[?OutputKey=='ServiceEndpoint'].OutputValue" \
+  --query "Stacks[0].Outputs[?OutputKey=='HttpApiUrl'].OutputValue" \
   --output text
 ```
 

@@ -84,10 +84,11 @@ jobs:
 
       - name: Smoke test the public API
         run: |
+          # HttpApiUrl is the output of an HTTP API, ServiceEndpoint the one of a REST API.
           ENDPOINT=$(aws cloudformation describe-stacks \
             --stack-name "appointments-${{ env.STAGE }}" \
             --region "${{ env.AWS_REGION }}" \
-            --query "Stacks[0].Outputs[?OutputKey=='ServiceEndpoint'].OutputValue" \
+            --query "Stacks[0].Outputs[?OutputKey=='HttpApiUrl'||OutputKey=='ServiceEndpoint'].OutputValue" \
             --output text)
           echo "API endpoint: $ENDPOINT"
           curl --fail --silent --show-error \
