@@ -84,3 +84,17 @@ jobs:
           curl --fail --silent --show-error \
             "$ENDPOINT/api/v1/appointments?date=2026-01-15" \
             --header 'Accept: application/json'
+
+      - name: Publish the summary
+        if: always()
+        run: |
+          {
+            echo "### Deployment to ${{ env.STAGE }}"
+            echo ""
+            echo "| Resource | Name |"
+            echo "| --- | --- |"
+            echo "| Stack | \`appointments-${{ env.STAGE }}\` |"
+            echo "| API | \`${{ env.AWS_REGION }}\` |"
+            echo "| API function | \`appointments-${{ env.STAGE }}-api\` |"
+            echo "| Appointments function | \`appointments-${{ env.STAGE }}-appointments\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
