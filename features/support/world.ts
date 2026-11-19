@@ -6,6 +6,8 @@ export interface ApiResponse {
 
 export class AppointmentWorld {
   response?: ApiResponse;
+  responses: ApiResponse[] = [];
+  storedError?: unknown;
   clientId = '';
   vehicleId = '';
 }

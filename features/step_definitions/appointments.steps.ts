@@ -207,3 +207,73 @@ Then(
     expect(this.response?.body.instance).toBe(instance);
   },
 );
+
+When(
+  'two requests schedule an appointment on {string} at {string} at the same time',
+  async function (this: AppointmentWorld, date: string, time: string) {
+    const { app } = getTestContext();
+    const body = {
+      clientId: this.clientId,
+      vehicleId: this.vehicleId,
+      date,
+      time,
+    };
+
+    const responses = await Promise.all([
+      request(app.getHttpServer()).post('/api/v1/appointments').send(body),
+      request(app.getHttpServer()).post('/api/v1/appointments').send(body),
+    ]);
+
+    this.responses = responses.map((response) => ({
+      status: response.status,
+      body: response.body as Record<string, unknown>,
+      contentType: response.headers['content-type'] ?? '',
+    }));
+    this.response = this.responses[0];
+  },
+);
+
+Then(
+  'exactly one response has status {int}',
+  function (this: AppointmentWorld, status: number) {
+    const matches = this.responses.filter(
+      (response) => response.status === status,
+    );
+
+    expect(matches).toHaveLength(1);
+  },
+);
+
+Then(
+  'the other response has status {int}',
+  function (this: AppointmentWorld, status: number) {
+    const [first, second] = this.responses;
+    const rejected = first.status === 201 ? second : first;
+
+    expect(rejected.status).toBe(status);
+  },
+);
+
+Then(
+  'the rejected response error code is {string}',
+  function (this: AppointmentWorld, code: string) {
+    const [first, second] = this.responses;
+    const rejected = first.status === 201 ? second : first;
+
+    expect(rejected.body.code).toBe(code);
+  },
+);
+
+Then(
+  'only one appointment is stored on {string}',
+  async function (this: AppointmentWorld, date: string) {
+    const { dataSource } = getTestContext();
+
+    const rows = (await dataSource.query(
+      'SELECT COUNT(*)::int AS total FROM appointments WHERE appointment_date = $1',
+      [date],
+    )) as { total: number }[];
+
+    expect(rows[0].total).toBe(1);
+  },
+);

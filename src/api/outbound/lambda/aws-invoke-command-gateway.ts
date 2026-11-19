@@ -1,4 +1,5 @@
 import { InvokeCommand, LambdaClient } from '@aws-sdk/client-lambda';
+import { Logger } from '@nestjs/common';
 import type { z } from 'zod';
 import {
   CommandEnvelope,
@@ -15,6 +16,7 @@ export interface AwsInvokeCommandGatewayOptions {
 
 export class AwsInvokeCommandGateway implements CommandGateway {
   private readonly client: LambdaClient;
+  private readonly logger = new Logger(AwsInvokeCommandGateway.name);
 
   constructor(private readonly options: AwsInvokeCommandGatewayOptions) {
     this.client = new LambdaClient({
@@ -48,6 +50,17 @@ export class AwsInvokeCommandGateway implements CommandGateway {
     }
 
     if (!result.data.ok) {
+      if (result.data.error.code === 'INTERNAL_ERROR') {
+        this.logger.error(
+          `The appointments function failed: ${result.data.error.message}`,
+        );
+
+        throw new ApiProblem(
+          'INTERNAL_ERROR',
+          'The appointments service failed to process the request.',
+        );
+      }
+
       throw new ApiProblem(
         result.data.error.code,
         result.data.error.message,

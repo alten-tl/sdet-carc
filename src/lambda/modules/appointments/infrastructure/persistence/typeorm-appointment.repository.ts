@@ -2,8 +2,10 @@ import { DataSource } from 'typeorm';
 import { APPOINTMENT_STATUS } from '@contracts/appointments/appointment-status';
 import { AppointmentRepository } from '@lambda/modules/appointments/application/ports/appointment-repository.port';
 import { Appointment } from '@lambda/modules/appointments/domain/appointment';
+import { SlotNotAvailableError } from '@lambda/modules/appointments/domain/errors';
 import { TimeSlot } from '@lambda/modules/appointments/domain/time-slot';
 import { AppointmentRecord } from './records/appointment-record';
+import { isSlotOverlapViolation } from './postgres-errors';
 
 export class TypeOrmAppointmentRepository implements AppointmentRepository {
   constructor(private readonly dataSource: DataSource) {}
@@ -34,19 +36,30 @@ export class TypeOrmAppointmentRepository implements AppointmentRepository {
   }
 
   async insert(appointment: Appointment): Promise<void> {
-    await this.dataSource.getRepository(AppointmentRecord).insert({
-      id: appointment.id,
-      clientId: appointment.clientId,
-      vehicleId: appointment.vehicleId,
-      appointmentDate: appointment.date,
-      startTime: appointment.time,
-      startsAt: appointment.startsAt,
-      endsAt: appointment.endsAt,
-      comments: appointment.comments,
-      status: appointment.status,
-      createdAt: appointment.createdAt,
-      updatedAt: appointment.updatedAt,
-    });
+    try {
+      await this.dataSource.getRepository(AppointmentRecord).insert({
+        id: appointment.id,
+        clientId: appointment.clientId,
+        vehicleId: appointment.vehicleId,
+        appointmentDate: appointment.date,
+        startTime: appointment.time,
+        startsAt: appointment.startsAt,
+        endsAt: appointment.endsAt,
+        comments: appointment.comments,
+        status: appointment.status,
+        createdAt: appointment.createdAt,
+        updatedAt: appointment.updatedAt,
+      });
+    } catch (error) {
+      if (isSlotOverlapViolation(error)) {
+        throw new SlotNotAvailableError({
+          date: appointment.date,
+          time: appointment.time,
+        });
+      }
+
+      throw error;
+    }
   }
 
   private toDomain(row: AppointmentRecord): Appointment {

@@ -51,3 +51,10 @@ Feature: Schedule an appointment for a client
     And the response content type is "application/problem+json"
     And the problem title is "The request payload is not valid"
     And the problem status is 400
+
+  Scenario: Accept a single appointment when two requests compete for the same time slot
+    When two requests schedule an appointment on "2026-01-20" at "10:00" at the same time
+    Then exactly one response has status 201
+    And the other response has status 409
+    And the rejected response error code is "SLOT_NOT_AVAILABLE"
+    And only one appointment is stored on "2026-01-20"
