@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import {
   AppointmentListSchema,
   AppointmentSchema,
+  CANCEL_APPOINTMENT_PAYLOAD_SCHEMA,
   CREATE_APPOINTMENT_PAYLOAD_SCHEMA,
   LIST_APPOINTMENTS_BY_DATE_PAYLOAD_SCHEMA,
   RESCHEDULE_APPOINTMENT_PAYLOAD_SCHEMA,
@@ -41,6 +42,18 @@ export class AppointmentsService {
       {
         type: 'appointments.create',
         payload: CREATE_APPOINTMENT_PAYLOAD_SCHEMA.parse(payload),
+      },
+      AppointmentSchema,
+    );
+
+    return AppointmentResponseSchema.parse(data);
+  }
+
+  async cancel(id: string): Promise<AppointmentResponse> {
+    const data = await this.commandGateway.execute(
+      {
+        type: 'appointments.cancel',
+        payload: CANCEL_APPOINTMENT_PAYLOAD_SCHEMA.parse({ id }),
       },
       AppointmentSchema,
     );

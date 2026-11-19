@@ -150,6 +150,34 @@ describe('appointments command contracts', () => {
     });
   });
 
+  describe('appointments.cancel', () => {
+    it('accepts a command with an appointment id', () => {
+      const result = APPOINTMENTS_COMMAND_SCHEMA.safeParse({
+        type: 'appointments.cancel',
+        payload: { id: '44444444-4444-4444-8444-444444444444' },
+      });
+
+      expect(result.success).toBe(true);
+    });
+
+    it('rejects a command with an appointment id that is not a uuid', () => {
+      const result = APPOINTMENTS_COMMAND_SCHEMA.safeParse({
+        type: 'appointments.cancel',
+        payload: { id: 'not-a-uuid' },
+      });
+
+      expect(result.success).toBe(false);
+    });
+
+    it('rejects a command without a payload', () => {
+      const result = APPOINTMENTS_COMMAND_SCHEMA.safeParse({
+        type: 'appointments.cancel',
+      });
+
+      expect(result.success).toBe(false);
+    });
+  });
+
   describe('the reschedule request', () => {
     it('accepts a request with a date', () => {
       const result = RESCHEDULE_APPOINTMENT_REQUEST_SCHEMA.safeParse({

@@ -87,6 +87,7 @@ export class TypeOrmAppointmentRepository implements AppointmentRepository {
           startTime: appointment.time,
           startsAt: appointment.startsAt,
           endsAt: appointment.endsAt,
+          status: appointment.status,
           updatedAt: appointment.updatedAt,
         },
       );

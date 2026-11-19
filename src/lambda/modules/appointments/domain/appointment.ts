@@ -1,3 +1,4 @@
+import { APPOINTMENT_STATUS } from '@contracts/appointments/appointment-status';
 import { AppointmentStatus } from '@contracts/appointments/appointment-status';
 import { AppointmentAlreadyCancelledError } from './errors';
 
@@ -67,6 +68,26 @@ export class Appointment {
       startsAt: slot.startsAt,
       endsAt: slot.endsAt,
       status: this.status,
+      comments: this.comments,
+      createdAt: this.createdAt,
+      updatedAt,
+    });
+  }
+
+  cancel(updatedAt: Date): Appointment {
+    if (!this.isEnabled) {
+      throw new AppointmentAlreadyCancelledError(this.id);
+    }
+
+    return new Appointment({
+      id: this.id,
+      clientId: this.clientId,
+      vehicleId: this.vehicleId,
+      date: this.date,
+      time: this.time,
+      startsAt: this.startsAt,
+      endsAt: this.endsAt,
+      status: APPOINTMENT_STATUS.DISABLED,
       comments: this.comments,
       createdAt: this.createdAt,
       updatedAt,

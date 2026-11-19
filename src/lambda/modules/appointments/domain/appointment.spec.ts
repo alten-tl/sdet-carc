@@ -120,4 +120,67 @@ describe('Appointment', () => {
       ).toThrow(AppointmentAlreadyCancelledError);
     });
   });
+
+  describe('cancel', () => {
+    it('disables the appointment', () => {
+      const cancelled = buildAppointment().cancel(
+        new Date('2026-01-15T08:00:00.000Z'),
+      );
+
+      expect(cancelled.status).toBe('DESHABILITADA');
+      expect(cancelled.isEnabled).toBe(false);
+    });
+
+    it('keeps the slot, the identity and the comments', () => {
+      const appointment = buildAppointment();
+      const cancelled = appointment.cancel(
+        new Date('2026-01-15T08:00:00.000Z'),
+      );
+
+      expect(cancelled.id).toBe(appointment.id);
+      expect(cancelled.clientId).toBe(appointment.clientId);
+      expect(cancelled.vehicleId).toBe(appointment.vehicleId);
+      expect(cancelled.date).toBe(appointment.date);
+      expect(cancelled.time).toBe(appointment.time);
+      expect(cancelled.startsAt.toISOString()).toBe(
+        appointment.startsAt.toISOString(),
+      );
+      expect(cancelled.endsAt.toISOString()).toBe(
+        appointment.endsAt.toISOString(),
+      );
+      expect(cancelled.comments).toBe(appointment.comments);
+    });
+
+    it('updates the update date and keeps the creation date', () => {
+      const cancelled = buildAppointment().cancel(
+        new Date('2026-01-15T08:00:00.000Z'),
+      );
+
+      expect(cancelled.updatedAt.toISOString()).toBe(
+        '2026-01-15T08:00:00.000Z',
+      );
+      expect(cancelled.createdAt.toISOString()).toBe(
+        '2026-01-10T12:00:00.000Z',
+      );
+    });
+
+    it('does not modify the original appointment', () => {
+      const appointment = buildAppointment();
+
+      appointment.cancel(new Date('2026-01-15T08:00:00.000Z'));
+
+      expect(appointment.status).toBe('HABILITADA');
+      expect(appointment.updatedAt.toISOString()).toBe(
+        '2026-01-10T12:00:00.000Z',
+      );
+    });
+
+    it('fails when the appointment is already cancelled', () => {
+      expect(() =>
+        buildAppointment('DESHABILITADA').cancel(
+          new Date('2026-01-15T08:00:00.000Z'),
+        ),
+      ).toThrow(AppointmentAlreadyCancelledError);
+    });
+  });
 });

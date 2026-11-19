@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -113,5 +114,30 @@ export class AppointmentsController {
     body: RescheduleAppointmentRequest,
   ): Promise<AppointmentResponse> {
     return this.appointmentsService.reschedule(id, body);
+  }
+
+  @Delete(':id')
+  @ApiOperation({
+    summary: 'Cancel an existing appointment',
+    description:
+      'Cancels an appointment by setting its status to DESHABILITADA and ' +
+      'refreshing its update date. The time slot is released, so another ' +
+      'appointment can take it.',
+  })
+  @ApiOkResponse({
+    description: 'The appointment that was cancelled',
+    schema: zodToOpenApi(AppointmentResponseSchema, 'output'),
+  })
+  @ApiBadRequestResponse(
+    problemResponse('The request payload is not valid'),
+  )
+  @ApiConflictResponse(
+    problemResponse('The appointment is already cancelled'),
+  )
+  @ApiNotFoundResponse(problemResponse('The appointment does not exist'))
+  async cancel(
+    @Param('id', { schema: z.uuid() }) id: string,
+  ): Promise<AppointmentResponse> {
+    return this.appointmentsService.cancel(id);
   }
 }

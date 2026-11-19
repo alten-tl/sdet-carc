@@ -283,3 +283,26 @@ Then(
     expect(rows[0].total).toBe(1);
   },
 );
+
+Then(
+  'the appointment date is {string}',
+  function (this: AppointmentWorld, date: string) {
+    expect(this.response?.body.date).toBe(date);
+  },
+);
+
+Then(
+  'the appointment time is {string}',
+  function (this: AppointmentWorld, time: string) {
+    expect(this.response?.body.time).toBe(time);
+  },
+);
+
+Then(
+  'the first listed appointment status is {string}',
+  function (this: AppointmentWorld, status: string) {
+    const items = this.response?.body.items as { status: string }[];
+
+    expect(items[0].status).toBe(status);
+  },
+);

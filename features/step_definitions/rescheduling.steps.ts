@@ -1,5 +1,4 @@
-import { Given, Then, When } from '@cucumber/cucumber';
-import { expect } from 'expect';
+import { Given, When } from '@cucumber/cucumber';
 import request from 'supertest';
 import { APPOINTMENT_STATUS } from '@contracts/appointments/appointment-status';
 import { getTestContext } from '../support/app-context';
@@ -76,19 +75,5 @@ When(
     time: string,
   ) {
     await reschedule(this, appointmentId, { date, time });
-  },
-);
-
-Then(
-  'the appointment date is {string}',
-  function (this: AppointmentWorld, date: string) {
-    expect(this.response?.body.date).toBe(date);
-  },
-);
-
-Then(
-  'the appointment time is {string}',
-  function (this: AppointmentWorld, time: string) {
-    expect(this.response?.body.time).toBe(time);
   },
 );

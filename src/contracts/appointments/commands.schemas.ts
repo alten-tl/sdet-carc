@@ -53,6 +53,14 @@ export type RescheduleAppointmentPayload = z.infer<
   typeof RESCHEDULE_APPOINTMENT_PAYLOAD_SCHEMA
 >;
 
+export const CANCEL_APPOINTMENT_PAYLOAD_SCHEMA = z.object({
+  id: z.uuid(),
+});
+
+export type CancelAppointmentPayload = z.infer<
+  typeof CANCEL_APPOINTMENT_PAYLOAD_SCHEMA
+>;
+
 export const LIST_APPOINTMENTS_BY_DATE_COMMAND_SCHEMA = z.object({
   type: z.literal('appointments.list'),
   payload: LIST_APPOINTMENTS_BY_DATE_PAYLOAD_SCHEMA,
@@ -68,10 +76,16 @@ export const RESCHEDULE_APPOINTMENT_COMMAND_SCHEMA = z.object({
   payload: RESCHEDULE_APPOINTMENT_PAYLOAD_SCHEMA,
 });
 
+export const CANCEL_APPOINTMENT_COMMAND_SCHEMA = z.object({
+  type: z.literal('appointments.cancel'),
+  payload: CANCEL_APPOINTMENT_PAYLOAD_SCHEMA,
+});
+
 export const APPOINTMENTS_COMMAND_SCHEMA = z.discriminatedUnion('type', [
   LIST_APPOINTMENTS_BY_DATE_COMMAND_SCHEMA,
   CREATE_APPOINTMENT_COMMAND_SCHEMA,
   RESCHEDULE_APPOINTMENT_COMMAND_SCHEMA,
+  CANCEL_APPOINTMENT_COMMAND_SCHEMA,
 ]);
 
 export type AppointmentsCommand = z.infer<typeof APPOINTMENTS_COMMAND_SCHEMA>;
