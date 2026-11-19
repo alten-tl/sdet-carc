@@ -18,6 +18,11 @@
     "incremental": true,
     "skipLibCheck": true,
     "strict": true,
-    "strictPropertyInitialization": false
+    "strictPropertyInitialization": false,
+    "paths": {
+      "@api/*": ["./src/api/*"],
+      "@contracts/*": ["./src/contracts/*"],
+      "@lambda/*": ["./src/lambda/*"]
+    }
   }
 }

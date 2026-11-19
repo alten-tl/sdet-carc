@@ -1,4 +1,4 @@
-import { runMigrations } from '../appointments/infrastructure/persistence/migrate-runner';
+import { runMigrations } from '@lambda/modules/appointments/infrastructure/persistence/migrate-runner';
 
 const loadLocalEnv = (): void => {
   try {
