@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [master, qa]
+  pull_request:
+    branches: [master, qa]
+
+jobs:
+  verify:
+    name: Lint, build, unit tests and acceptance tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint and architecture boundaries
+        run: pnpm lint
+
+      - name: Type check and build
+        run: pnpm build
+
+      - name: Unit tests with coverage
+        run: pnpm test:coverage
+
+      - name: Upload the coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 7
+
+      - name: Acceptance tests
+        run: pnpm test:bdd
