@@ -34,6 +34,7 @@ import type {
   AppointmentResponse,
 } from '@api/contracts/appointments.response';
 import { zodToOpenApi } from '@api/inbound/http/zod-openapi';
+import { problemResponse } from '@api/http/problem-response';
 
 @Controller('appointments')
 @ApiTags('appointments')
@@ -64,15 +65,15 @@ export class AppointmentsController {
     description: 'The appointment that was scheduled',
     schema: zodToOpenApi(AppointmentResponseSchema, 'output'),
   })
-  @ApiConflictResponse({
-    description: 'The requested time slot is already taken',
-  })
-  @ApiNotFoundResponse({
-    description: 'The client or the vehicle does not exist',
-  })
-  @ApiBadRequestResponse({
-    description: 'The request payload is not valid',
-  })
+  @ApiBadRequestResponse(
+    problemResponse('The request payload is not valid'),
+  )
+  @ApiConflictResponse(
+    problemResponse('The requested time slot is already taken'),
+  )
+  @ApiNotFoundResponse(
+    problemResponse('The client or the vehicle does not exist'),
+  )
   async create(
     @Body({ schema: CREATE_APPOINTMENT_PAYLOAD_SCHEMA })
     body: CreateAppointmentPayload,

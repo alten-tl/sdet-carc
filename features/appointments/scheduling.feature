@@ -17,6 +17,11 @@ Feature: Schedule an appointment for a client
     When the client schedules an appointment on "2026-01-20" at "10:00"
     Then the response status is 409
     And the response error code is "SLOT_NOT_AVAILABLE"
+    And the response content type is "application/problem+json"
+    And the problem type is "https://api.alten.com/problems/slot-not-available"
+    And the problem title is "The time slot is already taken"
+    And the problem status is 409
+    And the problem instance is "/api/v1/appointments"
 
   Scenario: Reject an appointment that overlaps an existing one
     Given an appointment scheduled on "2026-01-20" at "10:00"
@@ -43,3 +48,6 @@ Feature: Schedule an appointment for a client
     When the client schedules an appointment on "2026-01-20" at "10:00" with an invalid payload
     Then the response status is 400
     And the response error code is "INVALID_PAYLOAD"
+    And the response content type is "application/problem+json"
+    And the problem title is "The request payload is not valid"
+    And the problem status is 400

@@ -5,25 +5,46 @@ import {
   HttpException,
   Logger,
 } from '@nestjs/common';
-import type { Response } from 'express';
-import { ApiError } from '@api/errors/error-catalog';
+import type { Request, Response } from 'express';
+import type { ProblemError } from '@contracts/protocol/problem.schemas';
+import { ApiProblem, toProblemDetails } from '@api/errors/problem-details';
+
 interface HttpExceptionBody {
   message?: unknown;
 }
+
+const toProblemError = (message: string): ProblemError => {
+  const separator = message.indexOf(': ');
+
+  if (separator === -1) {
+    return { path: '', message };
+  }
+
+  return {
+    path: message.slice(0, separator),
+    message: message.slice(separator + 2),
+  };
+};
 
 @Catch()
 export class ApiExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(ApiExceptionFilter.name);
 
   catch(exception: unknown, host: ArgumentsHost): void {
-    const response = host.switchToHttp().getResponse<Response>();
+    const context = host.switchToHttp();
+    const response = context.getResponse<Response>();
+    const instance = context.getRequest<Request>().originalUrl;
 
-    if (exception instanceof ApiError) {
-      response.status(exception.status).json({
-        code: exception.code,
-        message: exception.message,
-        details: exception.details,
-      });
+    if (exception instanceof ApiProblem) {
+      this.send(
+        response,
+        toProblemDetails({
+          code: exception.code,
+          detail: exception.detail,
+          details: exception.details,
+          instance,
+        }),
+      );
       return;
     }
 
@@ -34,13 +55,19 @@ export class ApiExceptionFilter implements ExceptionFilter {
         typeof payload === 'string'
           ? { message: payload }
           : (payload as HttpExceptionBody);
+      const messages = Array.isArray(body.message)
+        ? body.message.map(String)
+        : [];
 
-      response.status(status).json({
-        code: status === 400 ? 'INVALID_PAYLOAD' : 'REQUEST_FAILED',
-        message:
-          typeof body.message === 'string' ? body.message : exception.message,
-        details: Array.isArray(body.message) ? body.message : undefined,
-      });
+      this.send(
+        response,
+        toProblemDetails({
+          code: status === 400 ? 'INVALID_PAYLOAD' : 'REQUEST_FAILED',
+          detail: messages.length > 0 ? 'The request payload is not valid.' : exception.message,
+          errors: messages.map(toProblemError),
+          instance,
+        }),
+      );
       return;
     }
 
@@ -49,9 +76,20 @@ export class ApiExceptionFilter implements ExceptionFilter {
       exception instanceof Error ? exception.stack : undefined,
     );
 
-    response.status(500).json({
-      code: 'INTERNAL_ERROR',
-      message: 'Internal server error',
-    });
+    this.send(
+      response,
+      toProblemDetails({
+        code: 'INTERNAL_ERROR',
+        detail: 'An unexpected error occurred while processing the request.',
+        instance,
+      }),
+    );
+  }
+
+  private send(
+    response: Response,
+    problem: ReturnType<typeof toProblemDetails>,
+  ): void {
+    response.status(problem.status).type('application/problem+json').json(problem);
   }
 }

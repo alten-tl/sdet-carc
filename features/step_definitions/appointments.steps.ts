@@ -18,6 +18,7 @@ const scheduleAppointment = async (
   world.response = {
     status: response.status,
     body: response.body as Record<string, unknown>,
+    contentType: response.headers['content-type'] ?? '',
   };
 };
 
@@ -111,6 +112,7 @@ When(
     this.response = {
       status: response.status,
       body: response.body as Record<string, unknown>,
+      contentType: response.headers['content-type'] ?? '',
     };
   },
 );
@@ -168,5 +170,40 @@ Then(
     const times = items.map((item) => item.time);
 
     expect(times).toEqual([...times].sort());
+  },
+);
+
+Then(
+  'the response content type is {string}',
+  function (this: AppointmentWorld, contentType: string) {
+    expect(this.response?.contentType).toContain(contentType);
+  },
+);
+
+Then(
+  'the problem type is {string}',
+  function (this: AppointmentWorld, type: string) {
+    expect(this.response?.body.type).toBe(type);
+  },
+);
+
+Then(
+  'the problem title is {string}',
+  function (this: AppointmentWorld, title: string) {
+    expect(this.response?.body.title).toBe(title);
+  },
+);
+
+Then(
+  'the problem status is {int}',
+  function (this: AppointmentWorld, status: number) {
+    expect(this.response?.body.status).toBe(status);
+  },
+);
+
+Then(
+  'the problem instance is {string}',
+  function (this: AppointmentWorld, instance: string) {
+    expect(this.response?.body.instance).toBe(instance);
   },
 );

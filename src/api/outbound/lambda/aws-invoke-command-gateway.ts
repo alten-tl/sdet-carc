@@ -4,7 +4,7 @@ import {
   CommandEnvelope,
   CommandResultSchema,
 } from '@contracts/protocol/command-contracts';
-import { ApiError } from '@api/errors/error-catalog';
+import { ApiProblem } from '@api/errors/problem-details';
 import { CommandGateway } from '@api/application/ports/command-gateway.port';
 
 export interface AwsInvokeCommandGatewayOptions {
@@ -40,7 +40,7 @@ export class AwsInvokeCommandGateway implements CommandGateway {
     const result = CommandResultSchema.safeParse(this.parsePayload(response));
 
     if (!result.success) {
-      throw new ApiError(
+      throw new ApiProblem(
         'INVALID_UPSTREAM_RESPONSE',
         'The appointments service returned an unreadable response.',
         result.error.issues,
@@ -48,7 +48,7 @@ export class AwsInvokeCommandGateway implements CommandGateway {
     }
 
     if (!result.data.ok) {
-      throw new ApiError(
+      throw new ApiProblem(
         result.data.error.code,
         result.data.error.message,
         result.data.error.details,
@@ -58,7 +58,7 @@ export class AwsInvokeCommandGateway implements CommandGateway {
     const data = dataSchema.safeParse(result.data.data);
 
     if (!data.success) {
-      throw new ApiError(
+      throw new ApiProblem(
         'INVALID_UPSTREAM_RESPONSE',
         'The appointments service response does not match the expected contract.',
         data.error.issues,
@@ -80,10 +80,9 @@ export class AwsInvokeCommandGateway implements CommandGateway {
 
       return response.Payload ?? new Uint8Array();
     } catch (error) {
-      throw new ApiError(
+      throw new ApiProblem(
         'LAMBDA_INVOCATION_FAILED',
         this.buildInvocationErrorMessage(error),
-        error instanceof Error ? { name: error.name } : undefined,
       );
     }
   }
