@@ -29,6 +29,7 @@ export const PROBLEM_DEFINITIONS = {
     'The request payload is not valid',
   ),
   REQUEST_FAILED: problem('request-failed', 400, 'The request could not be processed'),
+  NOT_FOUND: problem('not-found', 404, 'The requested resource does not exist'),
   CLIENT_NOT_FOUND: problem('client-not-found', 404, 'The client does not exist'),
   VEHICLE_NOT_FOUND: problem('vehicle-not-found', 404, 'The vehicle does not exist'),
   APPOINTMENT_NOT_FOUND: problem(
@@ -90,6 +91,12 @@ export interface ProblemDetailsInput {
   instance?: string;
   errors?: ProblemError[];
   details?: unknown;
+  /**
+   * Overrides the status of the problem definition. It is used when the
+   * failure comes from the HTTP layer (an unknown route, a method that is not
+   * allowed...) and the status carries more information than the code.
+   */
+  status?: number;
 }
 
 export const toProblemDetails = (
@@ -111,7 +118,7 @@ export const toProblemDetails = (
   return {
     type: definition.type,
     title: definition.title,
-    status: definition.status,
+    status: input.status ?? definition.status,
     detail: input.detail,
     instance: input.instance,
     code: input.code,

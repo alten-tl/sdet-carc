@@ -62,7 +62,8 @@ export class ApiExceptionFilter implements ExceptionFilter {
       this.send(
         response,
         toProblemDetails({
-          code: status === 400 ? 'INVALID_PAYLOAD' : 'REQUEST_FAILED',
+          code: this.toProblemCode(status),
+          status,
           detail: messages.length > 0 ? 'The request payload is not valid.' : exception.message,
           errors: messages.map(toProblemError),
           instance,
@@ -91,5 +92,22 @@ export class ApiExceptionFilter implements ExceptionFilter {
     problem: ReturnType<typeof toProblemDetails>,
   ): void {
     response.status(problem.status).type('application/problem+json').json(problem);
+  }
+
+  /**
+   * Maps an HTTP status to the problem code that describes it best. The
+   * status is always kept in the document, so the code only has to point to
+   * the right explanation.
+   */
+  private toProblemCode(status: number): string {
+    if (status === 400) {
+      return 'INVALID_PAYLOAD';
+    }
+
+    if (status === 404) {
+      return 'NOT_FOUND';
+    }
+
+    return 'REQUEST_FAILED';
   }
 }
