@@ -9,6 +9,8 @@ import { Test } from '@nestjs/testing';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type { DataSource } from 'typeorm';
+import { PostgreSqlContainer } from '@testcontainers/postgresql';
+import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { AppModule } from '../../src/app.module';
 import { configureApp } from '../../src/api/configure-app';
 import { disposeAppointmentsContainer } from '../../src/lambda/container';
@@ -20,9 +22,12 @@ import { AppointmentWorld } from './world';
 
 setWorldConstructor(AppointmentWorld);
 
+const POSTGRES_IMAGE = 'postgres:17-alpine';
+
 let app: INestApplication | undefined;
 let runtime: { url: string; close: () => Promise<void> } | undefined;
 let dataSource: DataSource | undefined;
+let database: StartedPostgreSqlContainer | undefined;
 
 const findFreePort = async (): Promise<number> => {
   const server = createServer();
@@ -40,6 +45,24 @@ const findFreePort = async (): Promise<number> => {
   return port;
 };
 
+const startDatabase = async (): Promise<string> => {
+  const externalUrl = process.env.TEST_DATABASE_URL;
+
+  if (externalUrl) {
+    return externalUrl;
+  }
+
+  const started = await new PostgreSqlContainer(POSTGRES_IMAGE)
+    .withDatabase('appointments_test')
+    .withUsername('app')
+    .withPassword('app')
+    .start();
+
+  database = started;
+
+  return started.getConnectionUri();
+};
+
 BeforeAll(async () => {
   try {
     process.loadEnvFile();
@@ -47,21 +70,14 @@ BeforeAll(async () => {
     console.warn('.env file not found, using the process environment.');
   }
 
-  const connectionUrl = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
+  const testConnectionUrl = await startDatabase();
 
-  if (!connectionUrl) {
-    throw new Error(
-      'DATABASE_URL is not set. Copy .env.example to .env before running the acceptance tests.',
-    );
-  }
-
-  await runMigrations(connectionUrl);
-
-  dataSource = await connectToDatabase(connectionUrl);
+  await runMigrations(testConnectionUrl);
+  dataSource = await connectToDatabase(testConnectionUrl);
 
   runtime = await startLocalLambdaRuntime({ port: await findFreePort() });
 
-  process.env.DATABASE_URL = connectionUrl;
+  process.env.DATABASE_URL = testConnectionUrl;
   process.env.LAMBDA_ENDPOINT = runtime.url;
   process.env.LAMBDA_FUNCTION_NAME = 'appointments';
 
@@ -85,4 +101,5 @@ AfterAll(async () => {
   await runtime?.close();
   await disposeAppointmentsContainer().catch(() => undefined);
   await dataSource?.destroy();
+  await database?.stop();
 });

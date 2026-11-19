@@ -81,6 +81,8 @@
     "tsx": "^4.23.15",
     "typescript": "^6.0.2",
     "@cucumber/cucumber": "^13.3.0",
-    "expect": "^30.5.2"
+    "expect": "^30.5.2",
+    "testcontainers": "^12.2.2",
+    "@testcontainers/postgresql": "^12.2.2"
   }
 }
