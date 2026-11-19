@@ -57,6 +57,10 @@ jobs:
           } > /tmp/sts.txt 2>&1 || true
           cat /tmp/sts.txt
 
+      - name: Checkout
+        if: always()
+        uses: actions/checkout@v4
+
       - name: Publish the diagnostic in a branch
         if: always()
         run: |
