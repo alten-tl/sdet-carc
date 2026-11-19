@@ -1,0 +1,65 @@
+name: OIDC diagnostic
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [dev]
+    paths:
+      - '.github/workflows/oidc-diagnostic.yml'
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Decode the OIDC token
+        run: |
+          set -euo pipefail
+          TOKEN=$(curl -s \
+            -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=sts.amazonaws.com" \
+            | python3 -c 'import json,sys; print(json.load(sys.stdin)["value"])')
+          echo "::add-mask::${TOKEN}"
+          printf '%s' "${TOKEN}" > /tmp/token.txt
+          python3 - <<'PY' | tee /tmp/payload.txt
+          import base64, json
+          token = open('/tmp/token.txt').read()
+          header, payload, signature = token.split('.')
+          def decode(part):
+              part += '=' * (-len(part) % 4)
+              return json.loads(base64.urlsafe_b64decode(part))
+          print(json.dumps({
+              'header': decode(header),
+              'payload': decode(payload),
+          }, indent=2))
+          PY
+
+      - name: Assume the role with that token
+        env:
+          AWS_DEPLOY_ROLE_ARN: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+        run: |
+          set -uo pipefail
+          {
+            echo "role-arn: ${AWS_DEPLOY_ROLE_ARN:-<empty>}"
+            echo "---"
+            aws sts assume-role-with-web-identity \
+              --role-arn "${AWS_DEPLOY_ROLE_ARN}" \
+              --role-session-name oidc-diagnostic \
+              --web-identity-token "$(cat /tmp/token.txt)" \
+              --duration-seconds 900 2>&1 | sed 's/"AccessKeyId": *"[^"]*"/"AccessKeyId": "***"/; s/"SecretAccessKey": *"[^"]*"/"SecretAccessKey": "***"/; s/"SessionToken": *"[^"]*"/"SessionToken": "***"/'
+            echo "exit code: ${PIPESTATUS[0]}"
+          } | tee /tmp/sts.txt
+
+      - name: Publish the diagnostic
+        uses: actions/upload-artifact@v4
+        with:
+          name: oidc-diagnostic
+          path: |
+            /tmp/payload.txt
+            /tmp/sts.txt
+          retention-days: 1
+          if-no-files-found: error

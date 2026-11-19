@@ -76,6 +76,58 @@ flowchart LR
 The secret is created by `scripts/create-database-secret.sh`, which asks for
 the password **without echoing it**, so it never reaches the shell history.
 
+### The thumbprint of the issuer: a trap worth documenting
+
+The first deployment of the pipeline failed with:
+
+```text
+Could not assume role with OIDC: The web identity token provided could not be
+validated. See the AssumeRoleWithWebIdentity documentation for requirements.
+```
+
+The cause was **not** the trust policy: the OIDC provider had been created
+with an explicit thumbprint, and AWS validates the signature of the token
+against the certificate of the issuer. When GitHub renewed that certificate,
+the stored thumbprint became obsolete and **every** token was rejected.
+
+```mermaid
+flowchart LR
+    a["Provider creado con<br/>--thumbprint-list 1b511abe…"] --> b["GitHub renueva el<br/>certificado → d367a479…"]
+    b --> c["❌ La firma ya no valida<br/>→ 'the web identity token could not be validated'"]
+
+    style a fill:#ffe9c2,stroke:#d58512,color:#000
+    style c fill:#ffd7d7,stroke:#c00,color:#000
+```
+
+The fix is to create the provider **without** an explicit thumbprint:
+
+```bash
+aws iam create-open-id-connect-provider \
+  --url "https://token.actions.githubusercontent.com" \
+  --client-id-list sts.amazonaws.com
+```
+
+AWS then retrieves the thumbprint of the **root certificate** of the issuer
+(`ab9d0263244dd0326eb67015705a667e79cfe998` at the time of writing) and
+**keeps it updated**, so the renewals of the leaf certificate stop being a
+problem.
+
+| Provider | Thumbprint | Who maintains it | On a certificate renewal |
+| --- | --- | --- | --- |
+| Host wide (`token.actions.githubusercontent.com`) | Root CA, retrieved by AWS | AWS | ✅ Nothing to do |
+| Repository scoped (`…/owner/repo`) | The leaf certificate, provided by us | Us | ⚠️ It has to be refreshed |
+
+A repository scoped provider cannot be validated by AWS (it looks for the
+`/.well-known/openid-configuration` of the scoped URL, which GitHub does not
+serve), so it always needs an explicit thumbprint. That is why the deployment
+uses the **host wide** provider: the trust policy still restricts the role to
+the subjects of this repository, and the certificate renewals stop breaking
+the pipeline.
+
+The `bootstrap-aws.sh` script computes the thumbprint from the live
+certificate when a repository scoped provider is requested, and omits it for
+the host wide one.
+
 ## Why OIDC and not a stored access key
 
 ```mermaid
