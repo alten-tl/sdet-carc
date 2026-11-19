@@ -10,6 +10,9 @@ const { config: tsconfig } = ts.readConfigFile(
 );
 const paths = tsconfig?.compilerOptions?.paths ?? {};
 
+// The coverage scope is the unit testable core: the contracts, the domain rules
+// and the use cases. The API adapters, the Lambda handlers and the persistence
+// layer are covered end to end by the Cucumber acceptance suite.
 const config: Config = {
   moduleFileExtensions: ['js', 'json', 'ts'],
   rootDir: '.',
@@ -19,11 +22,27 @@ const config: Config = {
   },
   moduleNameMapper: pathsToModuleNameMapper(paths, { prefix: '<rootDir>/' }),
   collectCoverageFrom: [
-    'src/**/*.(t|j)s',
-    'libs/**/*.(t|j)s',
-    'apps/**/*.(t|j)s',
+    'src/contracts/**/*.ts',
+    'src/lambda/modules/appointments/domain/**/*.ts',
+    'src/lambda/modules/appointments/application/**/*.ts',
+    '!src/**/index.ts',
   ],
   coverageDirectory: './coverage',
+  coverageReporters: ['text', 'lcov', 'html'],
+  coverageThreshold: {
+    global: {
+      statements: 90,
+      branches: 90,
+      functions: 90,
+      lines: 90,
+    },
+    './src/lambda/modules/appointments/domain/': {
+      statements: 95,
+      branches: 95,
+      functions: 100,
+      lines: 95,
+    },
+  },
   testEnvironment: 'node',
 };
 

@@ -40,7 +40,8 @@
     "test:debug": "node --inspect-brk --experimental-vm-modules -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:bdd": "cucumber-js",
     "test:bdd:domain": "cucumber-js features/domain",
-    "test:bdd:acceptance": "cucumber-js features/appointments"
+    "test:bdd:acceptance": "cucumber-js features/appointments",
+    "test:coverage": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --coverage"
   },
   "dependencies": {
     "@aws-sdk/client-lambda": "^3.1172.0",
