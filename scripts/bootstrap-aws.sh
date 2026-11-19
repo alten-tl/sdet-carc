@@ -108,22 +108,57 @@ else
 fi
 
 # 2. Trust policy --------------------------------------------------------
+# GitHub issues the "sub" claim of the OIDC token in two formats: the legacy
+# one (repo:owner/repository) and the current one, which includes the numeric
+# identifiers (repo:owner@id/repository@id). Which one is used depends on the
+# configuration of the organization, so both are allowed.
+OWNER_ID=$(curl -s "https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}" \
+  | python3 -c 'import json,sys; print(json.load(sys.stdin)["owner"]["id"])' 2> /dev/null || echo "")
+REPOSITORY_ID=$(curl -s "https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}" \
+  | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])' 2> /dev/null || echo "")
+
+if [ -z "$OWNER_ID" ] || [ -z "$REPOSITORY_ID" ]; then
+  echo "Could not read the repository identifiers from the GitHub API." >&2
+  exit 1
+fi
+
+echo "Repository identifiers: ${GITHUB_OWNER}@${OWNER_ID}/${GITHUB_REPO}@${REPOSITORY_ID}"
+
 # The JSON is built with Python to avoid escaping problems in the shell.
 TRUST_POLICY=$(python3 - \
-  "$PROVIDER_ARN" "$SUBJECT_KEY" "$GITHUB_OWNER" "$GITHUB_REPO" "$STAGES" "$DEPLOY_BRANCHES" <<'PYTHON'
+  "$PROVIDER_ARN" "$SUBJECT_KEY" "$GITHUB_OWNER" "$GITHUB_REPO" "$OWNER_ID" "$REPOSITORY_ID" \
+  "$STAGES" "$DEPLOY_BRANCHES" <<'PYTHON'
 import json
 import sys
 
-provider_arn, subject_key, owner, repository, stages, branches = sys.argv[1:7]
+(
+    provider_arn,
+    subject_key,
+    owner,
+    repository,
+    owner_id,
+    repository_id,
+    stages,
+    branches,
+) = sys.argv[1:9]
 
 # GitHub environments are the strictest option: only a job running inside a
 # protected environment of this repository can assume the role. The branches are
 # the fallback for repositories that cannot create environments.
+scopes = [
+    f'repo:{owner}/{repository}',
+    f'repo:{owner}@{owner_id}/{repository}@{repository_id}',
+]
+
 subjects = [
-    f'repo:{owner}/{repository}:environment:{stage}' for stage in stages.split()
+    f'{scope}:environment:{stage}'
+    for scope in scopes
+    for stage in stages.split()
 ]
 subjects += [
-    f'repo:{owner}/{repository}:ref:refs/heads/{branch}' for branch in branches.split()
+    f'{scope}:ref:refs/heads/{branch}'
+    for scope in scopes
+    for branch in branches.split()
 ]
 
 # A single statement keeps the document under the 2048 bytes quota of the
