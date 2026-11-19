@@ -8,7 +8,7 @@ on:
       - '.github/workflows/oidc-diagnostic.yml'
 
 permissions:
-  contents: read
+  contents: write
   id-token: write
 
 jobs:
@@ -25,7 +25,7 @@ jobs:
             | python3 -c 'import json,sys; print(json.load(sys.stdin)["value"])')
           echo "::add-mask::${TOKEN}"
           printf '%s' "${TOKEN}" > /tmp/token.txt
-          python3 - <<'PY' | tee /tmp/payload.txt
+          python3 - <<'PY' > /tmp/payload.txt
           import base64, json
           token = open('/tmp/token.txt').read()
           header, payload, signature = token.split('.')
@@ -45,23 +45,50 @@ jobs:
         run: |
           set -uo pipefail
           {
-            echo "role-arn: ${AWS_DEPLOY_ROLE_ARN:-<empty>}"
+            echo "role-arn del secret: ${AWS_DEPLOY_ROLE_ARN:-<VACIO>}"
             echo "---"
             aws sts assume-role-with-web-identity \
               --role-arn "${AWS_DEPLOY_ROLE_ARN}" \
               --role-session-name oidc-diagnostic \
               --web-identity-token "$(cat /tmp/token.txt)" \
-              --duration-seconds 900 2>&1 | sed 's/"AccessKeyId": *"[^"]*"/"AccessKeyId": "***"/; s/"SecretAccessKey": *"[^"]*"/"SecretAccessKey": "***"/; s/"SessionToken": *"[^"]*"/"SessionToken": "***"/'
-            echo "exit code: ${PIPESTATUS[0]}"
-          } | tee /tmp/sts.txt
+              --duration-seconds 900 2>&1 \
+              | sed 's/"AccessKeyId": *"[^"]*"/"AccessKeyId": "***"/; s/"SecretAccessKey": *"[^"]*"/"SecretAccessKey": "***"/; s/"SessionToken": *"[^"]*"/"SessionToken": "***"/'
+            echo "exit code del comando: ${PIPESTATUS[0]}"
+          } > /tmp/sts.txt 2>&1 || true
+          cat /tmp/sts.txt
 
-      - name: Publish the diagnostic
+      - name: Publish the diagnostic in a branch
         if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: oidc-diagnostic
-          path: |
-            /tmp/payload.txt
-            /tmp/sts.txt
-          retention-days: 1
-          if-no-files-found: error
+        run: |
+          set -euo pipefail
+          {
+            echo "### OIDC diagnostic"
+            echo
+            echo '```json'
+            cat /tmp/payload.txt
+            echo '```'
+            echo
+            echo '```'
+            cat /tmp/sts.txt
+            echo '```'
+          } > diagnostics/oidc.md 2>/dev/null || {
+            mkdir -p diagnostics
+            {
+              echo "### OIDC diagnostic"
+              echo
+              echo '```json'
+              cat /tmp/payload.txt
+              echo '```'
+              echo
+              echo '```'
+              cat /tmp/sts.txt
+              echo '```'
+            } > diagnostics/oidc.md
+          }
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -B diagnostics/oidc
+          git add diagnostics/oidc.md
+          git commit -m "diagnostic: oidc" || echo "nothing to commit"
+          git push origin diagnostics/oidc --force
