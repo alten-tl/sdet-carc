@@ -26,8 +26,15 @@ env:
   AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
 
 jobs:
+  verify:
+    name: Lint, build, unit tests and acceptance tests
+    # The CD never deploys code that does not pass the CI: this job reuses the
+    # verification pipeline and the deployment waits for it.
+    uses: ./.github/workflows/ci.yml
+
   deploy:
     name: Deploy to ${{ env.STAGE }}
+    needs: verify
     runs-on: ubuntu-latest
     timeout-minutes: 20
     # No GitHub environment is declared on purpose: the role is then assumed

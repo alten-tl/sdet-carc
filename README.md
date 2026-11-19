@@ -273,8 +273,11 @@ resolves the worker name without cross-stack references.
 | `qa`      | `qa`    | push / pull request                         |
 | `master`  | `prod`  | push                                        |
 
-The CD workflow builds the bundles, deploys the stack, invokes the `migrate`
-function and finally runs a smoke test against the public endpoint.
+The CD workflow reuses the CI pipeline as a gate: the `verify` job runs the
+lint, the build, the unit tests and the acceptance tests, and the `deploy` job
+only starts when that job has succeeded (`needs: verify`). Once the code is
+verified, the workflow builds the bundles, deploys the stack, invokes the
+`migrate` function and finally runs a smoke test against the public endpoint.
 
 The workflow assumes the deployment role through GitHub OIDC, without any
 long-lived key:

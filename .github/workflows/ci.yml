@@ -5,6 +5,9 @@ on:
     branches: [master, qa, dev]
   pull_request:
     branches: [master, qa, dev]
+  # Lets the CD workflow reuse this pipeline as a gate: the deployment only
+  # starts when this verification job has succeeded.
+  workflow_call:
 
 jobs:
   verify:
