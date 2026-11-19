@@ -10,6 +10,7 @@ jobs:
   verify:
     name: Lint, build, unit tests and acceptance tests
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Checkout
@@ -42,6 +43,11 @@ jobs:
           name: coverage-report
           path: coverage/
           retention-days: 7
+
+      - name: Pull the images used by the acceptance tests
+        run: |
+          docker pull postgres:17-alpine
+          docker pull testcontainers/ryuk:0.14.0
 
       - name: Acceptance tests
         run: pnpm test:bdd

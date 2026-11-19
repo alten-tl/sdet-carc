@@ -24,10 +24,14 @@ setWorldConstructor(AppointmentWorld);
 
 const POSTGRES_IMAGE = 'postgres:17-alpine';
 
+const SETUP_TIMEOUT = 180_000;
+const FORCE_EXIT_TIMEOUT = 30_000;
+
 let app: INestApplication | undefined;
 let runtime: { url: string; close: () => Promise<void> } | undefined;
 let dataSource: DataSource | undefined;
 let database: StartedPostgreSqlContainer | undefined;
+let databaseStart: Promise<StartedPostgreSqlContainer> | undefined;
 
 const findFreePort = async (): Promise<number> => {
   const server = createServer();
@@ -52,18 +56,41 @@ const startDatabase = async (): Promise<string> => {
     return externalUrl;
   }
 
-  const started = await new PostgreSqlContainer(POSTGRES_IMAGE)
+  const container = new PostgreSqlContainer(POSTGRES_IMAGE)
     .withDatabase('appointments_test')
     .withUsername('app')
-    .withPassword('app')
-    .start();
+    .withPassword('app');
 
-  database = started;
+  databaseStart = container.start();
 
-  return started.getConnectionUri();
+  try {
+    database = await databaseStart;
+
+    return database.getConnectionUri();
+  } catch (error) {
+    await databaseStart
+      .then((started) => started.stop())
+      .catch(() => undefined);
+
+    throw error;
+  }
 };
 
-BeforeAll(async () => {
+const stopDatabase = async (): Promise<void> => {
+  if (database) {
+    await database.stop().catch(() => undefined);
+
+    return;
+  }
+
+  if (databaseStart) {
+    await databaseStart
+      .then((started) => started.stop())
+      .catch(() => undefined);
+  }
+};
+
+BeforeAll({ timeout: SETUP_TIMEOUT }, async () => {
   try {
     process.loadEnvFile();
   } catch {
@@ -97,9 +124,20 @@ Before(async () => {
 });
 
 AfterAll(async () => {
+  const forceExit = setTimeout(() => {
+    console.error(
+      'The test run did not release every resource, forcing the exit.',
+    );
+    process.exit(process.exitCode ?? 1);
+  }, FORCE_EXIT_TIMEOUT);
+
+  forceExit.unref();
+
   await app?.close();
   await runtime?.close();
   await disposeAppointmentsContainer().catch(() => undefined);
   await dataSource?.destroy();
-  await database?.stop();
+  await stopDatabase();
+
+  clearTimeout(forceExit);
 });

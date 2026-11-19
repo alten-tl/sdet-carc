@@ -5,5 +5,6 @@ module.exports = {
     require: ['features/step_definitions/**/*.ts', 'features/support/**/*.ts'],
     format: ['progress'],
     strict: true,
+    timeout: 30_000,
   },
 };
