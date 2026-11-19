@@ -41,6 +41,7 @@ jobs:
       - name: Assume the role with that token
         env:
           AWS_DEPLOY_ROLE_ARN: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+        continue-on-error: true
         run: |
           set -uo pipefail
           {
@@ -55,6 +56,7 @@ jobs:
           } | tee /tmp/sts.txt
 
       - name: Publish the diagnostic
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: oidc-diagnostic
