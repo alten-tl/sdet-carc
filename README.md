@@ -1,132 +1,333 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Appointments API
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+REST API to manage vehicle repair-shop appointments, deployed on AWS with
+Serverless Framework. The public API and the business logic run in **two
+separate Lambda functions**, and PostgreSQL holds the data.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+- **Public API** (Lambda + API Gateway HTTP API): validates the HTTP contract
+  and answers with RFC 9457 problem details.
+- **Appointments service** (Lambda): owns the domain rules and talks to
+  PostgreSQL. It is invoked synchronously through the Lambda Invoke API.
+- **PostgreSQL**: the source of truth.
 
-## Description
+## Architecture
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
-
-## Project setup
-
-```bash
-$ pnpm install
+```
+            ┌────────────────────┐
+ client ──▶ │ API Gateway (HTTP) │
+            └─────────┬──────────┘
+                      │ REST (NestJS)
+            ┌─────────▼──────────┐
+            │ Lambda: api        │  validation, RFC 9457 errors, OpenAPI
+            └─────────┬──────────┘
+                      │ lambda:Invoke (RequestResponse)
+            ┌─────────▼──────────┐
+            │ Lambda: appointments│  domain rules, use cases, persistence
+            └─────────┬──────────┘
+                      │ PostgreSQL (TLS)
+            ┌─────────▼──────────┐
+            │ PostgreSQL 17      │
+            └────────────────────┘
 ```
 
-## Compile and run the project
+The API never touches the database: it only knows the command contract
+(`src/contracts`). The Lambda functions never know about HTTP: they exchange
+`CommandEnvelope` messages (`{ type, payload }`) and answer with
+`CommandResult` (`{ ok, data }` or `{ ok, error }`).
 
-```bash
-# development
-$ pnpm run start
+### Project layout
 
-# watch mode
-$ pnpm run start:dev
-
-# production mode
-$ pnpm run start:prod
+```
+src/
+├── api/            # HTTP layer (NestJS): controllers, filters, Swagger
+│   ├── application/    # use cases + ports used by the API
+│   ├── errors/         # RFC 9457 problem details
+│   └── outbound/       # Lambda Invoke gateway (the API's only dependency)
+├── contracts/      # Shared contracts: commands, payloads, errors, problems
+├── lambda/         # Business layer: domain, application, infrastructure
+└── tools/          # Local tooling: migrations, seed, local Lambda runtime
 ```
 
-## Run tests
+The dependency rule is enforced by `pnpm lint`
+(`src/tools/check-boundaries.ts`):
+
+| From         | Allowed to import                       |
+| ------------ | --------------------------------------- |
+| `api`        | `contracts`, `lambda`                   |
+| `lambda`     | `contracts`                             |
+| `contracts`  | nothing                                 |
+
+## Requirements
+
+- Node.js 24 (the deployed functions run on the AWS Node.js 22 runtime)
+- pnpm 10
+- Docker (PostgreSQL 17 for local development, testcontainers for the
+  acceptance tests)
+
+## Local development
 
 ```bash
-# unit tests
-$ pnpm run test
+pnpm install
+cp .env.example .env
 
-# e2e tests
-$ pnpm run test:e2e
+docker compose up -d postgres   # PostgreSQL 17 on localhost:5432
 
-# test coverage
-$ pnpm run test:cov
+pnpm db:migrate                  # apply the migrations
+pnpm db:seed                     # load the demonstration data
+
+pnpm local:lambda                # local Lambda runtime on :3001
+pnpm start:dev                   # REST API on :3000
 ```
+
+The API reaches the Lambda function through the AWS SDK. With
+`LAMBDA_ENDPOINT=http://localhost:3001` the invocation is sent to the local
+runtime instead of AWS, so the whole flow can be exercised without deploying
+anything.
+
+- REST API: <http://localhost:3000/api/v1/appointments>
+- OpenAPI document: <http://localhost:3000/api/openapi.json>
+- Interactive documentation: <http://localhost:3000/api/docs>
+
+### Configuration
+
+| Variable                 | Used by            | Description                                            |
+| ------------------------ | ------------------ | ------------------------------------------------------ |
+| `DATABASE_URL`           | Lambda, tools      | PostgreSQL connection string (local development)        |
+| `DATABASE_SECRET_ID`     | Lambda             | Secrets Manager secret holding `DATABASE_URL` (AWS)     |
+| `PORT`                   | API                | HTTP port (default `3000`)                              |
+| `AWS_REGION`             | API                | Region of the appointments function                     |
+| `LAMBDA_FUNCTION_NAME`   | API                | Name of the appointments function                       |
+| `LAMBDA_ENDPOINT`        | API                | Local runtime endpoint; unset on AWS                    |
+| `LOCAL_LAMBDA_PORT`      | Local runtime      | Port of the local Lambda runtime (default `3001`)       |
+| `SLOT_DURATION_MINUTES`  | Lambda             | Duration of an appointment slot (default `60`)          |
+| `DB_POOL_SIZE`           | Lambda             | Connections per warm container (default `10`)           |
+
+## API
+
+Base path: `/api/v1`.
+
+| Method   | Path                   | Description                                        |
+| -------- | ---------------------- | -------------------------------------------------- |
+| `GET`    | `/appointments?date=`  | Lists the appointments of a given date               |
+| `POST`   | `/appointments`        | Creates an appointment                               |
+| `PATCH`  | `/appointments/{id}`   | Reschedules an appointment (`date` and/or `time`)    |
+| `DELETE` | `/appointments/{id}`   | Cancels an appointment                               |
+
+```bash
+curl -X POST http://localhost:3000/api/v1/appointments \
+  -H 'Content-Type: application/json' \
+  -d '{
+        "clientId": "11111111-1111-4111-8111-111111111111",
+        "vehicleId": "22222222-2222-4222-8222-222222222222",
+        "date": "2026-01-15",
+        "time": "10:00",
+        "comments": "Front brake pads"
+      }'
+```
+
+### Errors
+
+Every error is a [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457) problem
+document served as `application/problem+json`:
+
+```json
+{
+  "type": "https://api.alten.com/problems/slot-not-available",
+  "title": "The requested slot is not available",
+  "status": 409,
+  "detail": "Another appointment already occupies the 2026-01-15T10:00 slot.",
+  "instance": "/api/v1/appointments",
+  "code": "SLOT_NOT_AVAILABLE"
+}
+```
+
+| Status | Code                                                    |
+| ------ | ------------------------------------------------------- |
+| 400    | `INVALID_REQUEST`, `INVALID_UPSTREAM_RESPONSE`          |
+| 404    | `APPOINTMENT_NOT_FOUND`                                 |
+| 409    | `SLOT_NOT_AVAILABLE`, `APPOINTMENT_ALREADY_CANCELLED`   |
+| 500    | `INTERNAL_ERROR`                                        |
+| 502    | `LAMBDA_INVOCATION_FAILED`                              |
+
+### Double booking
+
+PostgreSQL enforces the rule with an exclusion constraint:
+
+```sql
+EXCLUDE USING gist (
+  tstzrange(starts_at, ends_at, '[)') WITH &&
+) WHERE (status = 'HABILITADA')
+```
+
+The partial predicate means that cancelling an appointment frees its slot
+immediately. The repository translates the `23P01` violation into a
+`SlotNotAvailableError`, so a race between two concurrent bookings always ends
+in a `409` instead of a `500`.
+
+## Tests
+
+```bash
+pnpm lint           # lint + architecture boundaries
+pnpm build          # type check and compile
+pnpm test:coverage  # unit tests with coverage
+pnpm test:bdd       # domain + acceptance tests (Cucumber)
+```
+
+| Suite             | Scope                                                        |
+| ----------------- | ------------------------------------------------------------ |
+| Unit tests        | Domain rules, use cases, schemas, HTTP layer (81 tests, 100% coverage) |
+| Domain BDD        | Cucumber features for the slot availability rules            |
+| Acceptance BDD    | End-to-end features against a real PostgreSQL (testcontainers)|
+
+The acceptance suite boots PostgreSQL with testcontainers, so no local
+database is required to run it.
 
 ## Deployment
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+The infrastructure is defined with [Serverless Framework](https://www.serverless.com/)
+in `serverless.yml` and deployed with GitHub Actions (`.github/workflows/cd.yml`)
+using OIDC, so no long-lived AWS keys live in the repository.
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+### AWS resources
+
+| Resource                    | Purpose                                                    |
+| --------------------------- | ---------------------------------------------------------- |
+| API Gateway HTTP API        | Public entry point                                          |
+| Lambda `api`                | REST API (NestJS, bundled with rspack)                     |
+| Lambda `appointments`       | Business logic (bundled with esbuild)                      |
+| Lambda `migrate`            | Applies the migrations, invoked by the pipeline             |
+| Lambda `seed`               | Loads the demonstration data, invoked manually              |
+| Secrets Manager secret      | Holds the PostgreSQL connection string                      |
+| IAM role                    | Allows `lambda:InvokeFunction` and `secretsmanager:GetSecretValue` |
+
+Both Lambdas are deployed from a single CloudFormation stack, so the API
+resolves the worker name without cross-stack references.
+
+### One-time setup
+
+1. Configure local credentials (only needed for the one-time setup and for
+   troubleshooting):
+
+   ```bash
+   aws configure
+   ```
+
+2. Create the GitHub OIDC provider and the deployment role:
+
+   ```bash
+   GITHUB_OWNER="<owner>" GITHUB_REPO="<repo>" ./scripts/bootstrap-aws.sh
+   ```
+
+   The script is idempotent: it creates the provider when it is missing,
+   updates the trust policy of the role and prints the ARN to use. The trust
+   policy only accepts the GitHub environments of this repository:
+
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Effect": "Allow",
+         "Principal": { "Federated": "arn:aws:iam::<account-id>:oidc-provider/token.actions.githubusercontent.com/<owner>/<repo>" },
+         "Action": "sts:AssumeRoleWithWebIdentity",
+         "Condition": {
+           "StringEquals": {
+             "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
+             "token.actions.githubusercontent.com:sub": "repo:<owner>/<repo>:environment:<stage>"
+           }
+         }
+       }
+     ]
+   }
+   ```
+
+3. Store the role ARN as the `AWS_DEPLOY_ROLE_ARN` secret of the repository
+   (or of each GitHub environment, see the pipelines section) and set the
+   `AWS_REGION` repository variable.
+
+4. Create the database secret:
+
+   ```bash
+   DATABASE_URL="postgres://user:password@host:5432/appointments" \
+     ./scripts/create-database-secret.sh
+   ```
+
+5. Push to `dev`: the CD workflow deploys the stack, applies the migrations
+   and prints the API endpoint:
+
+   ```bash
+   aws cloudformation describe-stacks \
+     --stack-name appointments-dev \
+     --query "Stacks[0].Outputs[?OutputKey=='ServiceEndpoint'].OutputValue" \
+     --output text
+   ```
+
+   The endpoint is the AWS one (`https://<id>.execute-api.<region>.amazonaws.com`);
+   no custom domain is required.
+
+### Pipelines
+
+| Branch    | Stage   | Trigger                                     |
+| --------- | ------- | ------------------------------------------- |
+| `dev`     | `dev`   | push / pull request                         |
+| `qa`      | `qa`    | push / pull request                         |
+| `master`  | `prod`  | push                                        |
+
+The CD workflow builds the bundles, deploys the stack, invokes the `migrate`
+function and finally runs a smoke test against the public endpoint.
+
+The workflow assumes the deployment role through GitHub OIDC, without any
+long-lived key:
+
+- If the repository can create **GitHub environments**, the workflow declares
+  `environment: <stage>` and the role is only assumed from a job running
+  inside that environment (the strictest option).
+- Otherwise the workflow runs without an environment and the role is assumed
+  with the `ref:refs/heads/<branch>` subject. The trust policy of the role
+  accepts both, so the workflow works in either case.
+
+The `AWS_DEPLOY_ROLE_ARN` secret can live at the repository level (it is read
+from any workflow of the repository) or in each environment.
+
+To deploy manually (with the local AWS credentials):
 
 ```bash
-$ pnpm install -g @nestjs/mau
-$ mau deploy
+pnpm bundle:lambda && pnpm build:api-lambda
+npx serverless deploy --stage dev --region us-east-1
+npx serverless invoke --function migrate --stage dev --data '{}'
+npx serverless invoke --function seed --stage dev --data '{}'
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+The migration is idempotent: it only applies the pending ones.
+
+### Packaging
+
+Both functions are shipped as a single file each:
+
+- The **API** is bundled with rspack (`rspack.lambda.config.js`). The SWC
+  loader keeps `decoratorMetadata` enabled, which is what makes Nest's
+  constructor injection work.
+- The **appointments service** is bundled with esbuild
+  (`pnpm bundle:lambda`), because it does not rely on decorator metadata.
+
+The resulting deployment package is ~4 MB, well below the AWS limits.
+
+## Database
+
+Two options are supported, with no code change beyond the secret and the
+networking configuration:
+
+| Option   | Cost                             | Notes                                                                 |
+| -------- | -------------------------------- | --------------------------------------------------------------------- |
+| Coolify  | ~0 USD (existing VPS)            | Public PostgreSQL: the Lambda needs a TLS connection and a strong password |
+| RDS      | ~13 USD/month (db.t3.micro)      | Private in a VPC: requires a NAT gateway or a VPC endpoint for the outbound traffic |
+
+Both functions read the connection string from Secrets Manager, so the same
+artifacts work in both cases.
 
 ## Observability
 
-In production applications, observability is essential for understanding how your system behaves, detecting issues early, and maintaining reliable performance.
-
-[NestJS Observe](https://observe.nestjs.com) automatically instruments your NestJS application, giving you deep visibility into your system with minimal setup:
-
-- **Distributed tracing:** Follow requests across services and understand how they flow through your system.
-- **Waterfall analysis:** Visualize request execution and identify slow operations, bottlenecks, and unexpected delays.
-- **Performance analysis:** Analyze application performance in real time and quickly pinpoint areas that need optimization.
-- **Metrics:** Track key application and infrastructure metrics to understand system health and performance trends.
-- **Logging:** Centralize and correlate logs with traces and other telemetry to make debugging easier.
-- **Error tracking:** Detect errors quickly and investigate their root causes with the surrounding context.
-- **SLA monitoring:** Track service-level objectives and identify when your application is approaching or exceeding defined thresholds.
-- **Alarms and alerts:** Set up alerts for critical errors, performance degradation, SLA violations, and other anomalies so your team can react quickly.
-
-To add it to this project, run this and approve the code it prints at [observe.nestjs.com/link](https://observe.nestjs.com/link) - signing up for free if you have no account:
-
-```bash
-$ npx @nestjs/observe link
-```
-
-It installs `@nestjs/observe`, wires it into `AppModule` and `main.ts`, and writes the app key and secret into `.env`, which every `nest start` script (`start`, `start:dev`, `start:debug`) then loads. In production, set `OBSERVE_APP_KEY` and `OBSERVE_APP_SECRET` in the environment instead.
-
-Or do it by hand:
-
-```bash
-$ pnpm install @nestjs/observe
-```
-
-Then follow the [setup guide](https://docs.nestjs.com/observability/sdk) - it takes a single import and an app key.
-
-The free plan needs no payment details and covers 300,000 events a month. You can also browse the [live demo](https://www.observe-demo.nestjs.com/dashboard) first - the whole dashboard over a busy service's data, with nothing to install.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Auto-instrument your application with [NestJS Observe](https://observe.nestjs.com). Distributed tracing, metrics, and logging made easy. Error tracking and performance monitoring for your NestJS applications.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+- AWS X-Ray tracing is enabled for every function.
+- Logs are kept for 14 days in CloudWatch.
+- The API never leaks internal error details: an upstream failure is logged
+  with the original message and answered with a generic problem document.

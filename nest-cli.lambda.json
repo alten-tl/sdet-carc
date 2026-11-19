@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json.schemastore.org/nest-cli",
+  "collection": "@nestjs/schematics",
+  "sourceRoot": "src",
+  "entryFile": "api-lambda",
+  "compilerOptions": {
+    "builder": {
+      "type": "rspack",
+      "options": {
+        "configPath": "rspack.lambda.config.js"
+      }
+    },
+    "deleteOutDir": false,
+    "tsConfigPath": "tsconfig.build.json",
+    "outputPath": "dist/api",
+    "assets": [],
+    "watchAssets": false
+  }
+}

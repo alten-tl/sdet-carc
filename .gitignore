@@ -3,6 +3,9 @@
 /node_modules
 /build
 
+# Serverless Framework artifacts
+/.serverless
+
 # TypeScript build cache
 *.tsbuildinfo
 

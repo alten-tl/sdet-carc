@@ -17,9 +17,12 @@ export const APPOINTMENTS_MIGRATIONS = [
   AddAppointmentSlotOverlapConstraint1700000003000,
 ];
 
+export const DEFAULT_POOL_SIZE = 10;
+
 export const buildDataSourceOptions = (
   connectionUrl: string,
   logging = false,
+  poolSize = DEFAULT_POOL_SIZE,
 ): DataSourceOptions => ({
   type: 'postgres',
   url: connectionUrl,
@@ -29,6 +32,9 @@ export const buildDataSourceOptions = (
   synchronize: false,
   logging,
   extra: {
+    pool: {
+      max: poolSize,
+    },
     types: {
       getTypeParser: (oid: number, format?: unknown) =>
         oid === DATE_OID

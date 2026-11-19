@@ -1,0 +1,86 @@
+name: CD
+
+on:
+  push:
+    branches: [master, qa, dev]
+  workflow_dispatch:
+    inputs:
+      stage:
+        description: 'Target stage (dev, qa or prod)'
+        required: true
+        default: dev
+        type: choice
+        options: [dev, qa, prod]
+
+concurrency:
+  group: cd-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  # Required to exchange the GitHub OIDC token for AWS credentials.
+  id-token: write
+
+env:
+  STAGE: ${{ github.event_name == 'workflow_dispatch' && inputs.stage || github.ref_name == 'master' && 'prod' || github.ref_name == 'qa' && 'qa' || 'dev' }}
+  AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+
+jobs:
+  deploy:
+    name: Deploy to ${{ env.STAGE }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # No GitHub environment is declared on purpose: the role is then assumed
+    # with the "ref:refs/heads/<branch>" subject. When the repository can
+    # create environments, add "environment: ${{ env.STAGE }}" here and the
+    # stricter "environment:<stage>" subject is used instead.
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Bundle the Lambda artifacts
+        run: |
+          pnpm bundle:lambda
+          pnpm build:api-lambda
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy the stack
+        run: npx serverless deploy --stage ${{ env.STAGE }} --region ${{ env.AWS_REGION }}
+
+      - name: Apply the database migrations
+        run: |
+          npx serverless invoke \
+            --function migrate \
+            --stage ${{ env.STAGE }} \
+            --region ${{ env.AWS_REGION }} \
+            --data '{}'
+
+      - name: Smoke test the public API
+        run: |
+          ENDPOINT=$(aws cloudformation describe-stacks \
+            --stack-name "appointments-${{ env.STAGE }}" \
+            --region "${{ env.AWS_REGION }}" \
+            --query "Stacks[0].Outputs[?OutputKey=='ServiceEndpoint'].OutputValue" \
+            --output text)
+          echo "API endpoint: $ENDPOINT"
+          curl --fail --silent --show-error \
+            "$ENDPOINT/api/v1/appointments?date=2026-01-15" \
+            --header 'Accept: application/json'

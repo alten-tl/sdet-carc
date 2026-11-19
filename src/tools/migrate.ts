@@ -1,4 +1,5 @@
 import { runMigrations } from '@lambda/modules/appointments/infrastructure/persistence/migrate-runner';
+import { createSecretProvider } from '@lambda/config/secret-provider';
 
 const loadLocalEnv = (): void => {
   try {
@@ -11,13 +12,7 @@ const loadLocalEnv = (): void => {
 const main = async (): Promise<void> => {
   loadLocalEnv();
 
-  const connectionUrl = process.env.DATABASE_URL;
-  if (!connectionUrl) {
-    throw new Error(
-      'DATABASE_URL is not set. Copy .env.example to .env and provide the connection string.',
-    );
-  }
-
+  const connectionUrl = await createSecretProvider().getDatabaseUrl();
   const revert = process.argv.includes('--revert');
   const applied = await runMigrations(connectionUrl, { revert, logging: true });
 

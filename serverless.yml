@@ -1,0 +1,94 @@
+service: appointments
+
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: nodejs22.x
+  # x86_64 is used on purpose: the first deployment favours compatibility over
+  # the cheaper arm64 (graviton) runtime.
+  architecture: x86_64
+  memorySize: 512
+  timeout: 30
+  region: ${opt:region, 'us-east-1'}
+  stage: ${opt:stage, 'dev'}
+  logRetentionInDays: 14
+  tracing:
+    lambda: true
+  environment:
+    NODE_OPTIONS: '--enable-source-maps'
+  iam:
+    role:
+      statements:
+        # The REST API invokes the appointments function through the Lambda
+        # Invoke API (RequestResponse).
+        - Effect: Allow
+          Action:
+            - lambda:InvokeFunction
+          Resource:
+            - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${self:service}-${self:provider.stage}-appointments'
+        # Only the functions that talk to PostgreSQL read the connection string.
+        - Effect: Allow
+          Action:
+            - secretsmanager:GetSecretValue
+          Resource:
+            - !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${self:custom.databaseSecretName}-*'
+  httpApi:
+    cors: true
+
+functions:
+  api:
+    handler: dist/api/api-lambda.apiLambdaHandler
+    description: >-
+      Public REST API. It validates the HTTP contract and delegates the
+      business logic to the appointments function through the Lambda Invoke API.
+    memorySize: 1024
+    # API Gateway caps the request at 30 seconds, so the function must finish first.
+    timeout: 29
+    environment:
+      LAMBDA_FUNCTION_NAME: ${self:service}-${self:provider.stage}-appointments
+      # AWS_REGION is set by the Lambda runtime itself and cannot be overridden.
+    events:
+      - httpApi: '*'
+
+  appointments:
+    handler: dist/bundle/handler.appointmentsLambdaHandler
+    description: >-
+      Handles the appointments commands: list by date, create, reschedule and
+      cancel. It is invoked synchronously by the REST API through the Lambda
+      Invoke API.
+    reservedConcurrency: 10
+    environment:
+      SLOT_DURATION_MINUTES: '60'
+      # Every warm container keeps its own connection pool. Keeping the pool
+      # small and the concurrency bounded avoids exhausting the PostgreSQL
+      # max_connections limit when the function scales out.
+      DB_POOL_SIZE: '2'
+      DATABASE_SECRET_ID: ${self:custom.databaseSecretName}
+
+  migrate:
+    handler: dist/bundle/handlers/migrate-handler.migrateHandler
+    description: >-
+      Applies the pending database migrations. It is invoked by the deployment
+      pipeline right after the code is deployed.
+    timeout: 120
+    environment:
+      DATABASE_SECRET_ID: ${self:custom.databaseSecretName}
+
+  seed:
+    handler: dist/bundle/handlers/seed-handler.seedHandler
+    description: >-
+      Loads the demonstration data. It is invoked manually, never by the
+      deployment pipeline.
+    timeout: 120
+    environment:
+      DATABASE_SECRET_ID: ${self:custom.databaseSecretName}
+
+custom:
+  databaseSecretName: ${env:DATABASE_SECRET_NAME, 'appointments/database-url'}
+
+package:
+  patterns:
+    - '!./**'
+    - './dist/api/**'
+    - './dist/bundle/**'
