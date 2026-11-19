@@ -33,7 +33,9 @@ jobs:
     uses: ./.github/workflows/ci.yml
 
   deploy:
-    name: Deploy to ${{ env.STAGE }}
+    # The env context is not available in the name of a job, so the stage is
+    # resolved with the contexts that are (github and inputs).
+    name: Deploy to ${{ github.event_name == 'workflow_dispatch' && inputs.stage || github.ref_name }}
     needs: verify
     runs-on: ubuntu-latest
     timeout-minutes: 20
