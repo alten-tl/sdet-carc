@@ -37,7 +37,10 @@
     "test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js",
     "test:watch": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --watch",
     "test:cov": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --coverage",
-    "test:debug": "node --inspect-brk --experimental-vm-modules -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand"
+    "test:debug": "node --inspect-brk --experimental-vm-modules -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
+    "test:bdd": "cucumber-js",
+    "test:bdd:domain": "cucumber-js features/domain",
+    "test:bdd:acceptance": "cucumber-js features/appointments"
   },
   "dependencies": {
     "@aws-sdk/client-lambda": "^3.1172.0",
@@ -76,6 +79,8 @@
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
     "tsx": "^4.23.15",
-    "typescript": "^6.0.2"
+    "typescript": "^6.0.2",
+    "@cucumber/cucumber": "^13.3.0",
+    "expect": "^30.5.2"
   }
 }
