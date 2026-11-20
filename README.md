@@ -10,6 +10,58 @@ separate Lambda functions**, and PostgreSQL holds the data.
   PostgreSQL. It is invoked synchronously through the Lambda Invoke API.
 - **PostgreSQL**: the source of truth.
 
+## What is this application?
+
+A vehicle repair shop schedules appointments: a client brings a car, a
+technician needs a bay and an hour. Two rules drive everything: **a bay can
+never hold two vehicles at the same time**, and **when an appointment is
+cancelled the slot becomes available immediately**.
+
+This API is the booking system behind that:
+
+- The client (or the reception desk) asks for an appointment and gets an
+  answer that is either a confirmed booking or a clear reason why it was
+  rejected.
+- The agenda of any day can be listed, an appointment can be moved to another
+  hour or day, and it can be cancelled.
+- Nobody can book a slot that is already taken, not even when two people press
+  the button at the same instant.
+
+It is a REST API, so the very same service serves a web booking page, the
+reception desk's screen or a mobile app. It is published in the cloud (AWS)
+and the data lives in PostgreSQL.
+
+### How do we know it works?
+
+The business rules are **not written as code**: they are written as scenarios
+in a language close to plain English, and a tool called
+[Cucumber](https://cucumber.io/) executes them automatically.
+
+```gherkin
+Scenario: Reject an appointment when the exact time slot is already taken
+  Given an appointment scheduled on "2026-01-20" at "10:00"
+  When the client schedules an appointment on "2026-01-20" at "10:00"
+  Then the response status is 409
+  And the response error code is "SLOT_NOT_AVAILABLE"
+```
+
+That scenario is a promise: *"nobody can book a taken slot"*. It is checked
+against the **real** API and a **real** PostgreSQL, and it runs on every push,
+before anything is deployed to the cloud. The whole catalogue of promises is
+in [`features/`](features/):
+
+| Scenario file | The promise it keeps |
+| --- | --- |
+| [`features/appointments/scheduling.feature`](features/appointments/scheduling.feature) | Booking a free slot works; a taken slot is rejected; two simultaneous requests produce one booking and one rejection |
+| [`features/appointments/listing.feature`](features/appointments/listing.feature) | The agenda of a day can be listed, including the empty day |
+| [`features/appointments/rescheduling.feature`](features/appointments/rescheduling.feature) | An appointment can be moved to another day or hour, and invalid moves are rejected |
+| [`features/appointments/cancellation.feature`](features/appointments/cancellation.feature) | An appointment can be cancelled and its slot is freed at once |
+| [`features/appointments/slot-constraint.feature`](features/appointments/slot-constraint.feature) | The database itself makes double booking impossible |
+| [`features/domain/slot-availability.feature`](features/domain/slot-availability.feature) | The slot rules, without any infrastructure |
+
+The strategy, the test pyramid and the numbers are in
+[docs/testing/strategy.md](docs/testing/strategy.md).
+
 ## Live environment
 
 The API is **fully deployed** and can be tested end to end:
@@ -36,7 +88,7 @@ The detailed documentation lives in [`docs/`](docs/README.md):
 | [docs/architecture/deployment.md](docs/architecture/deployment.md) | The AWS topology, the packaging and the CI/CD pipeline |
 | [docs/decisions/](docs/decisions/README.md) | The architecture decision records: why each technology was chosen |
 | [docs/api/](docs/api/endpoints.md) | The endpoints, the error catalogue and the OpenAPI document |
-| [docs/testing/strategy.md](docs/testing/strategy.md) | The test strategy and the suites |
+| [docs/testing/strategy.md](docs/testing/strategy.md) | The test strategy, the suites and the Cucumber scenarios of the business rules |
 | [docs/operations/](docs/operations/runbook.md) | The runbook, the local development guide and the costs |
 | [docs/roadmap.md](docs/roadmap.md) | The recommended next steps |
 
@@ -292,7 +344,7 @@ resolves the worker name without cross-stack references.
    ```bash
    aws cloudformation describe-stacks \
      --stack-name appointments-dev \
-     --query "Stacks[0].Outputs[?OutputKey=='ServiceEndpoint'].OutputValue" \
+      --query "Stacks[0].Outputs[?OutputKey=='HttpApiUrl'].OutputValue" \
      --output text
    ```
 

@@ -49,7 +49,8 @@ alternatives that were discarded.
 
 | Document | Content |
 | --- | --- |
-| [testing/strategy.md](testing/strategy.md) | Test pyramid, coverage and how to run the suites |
+| [testing/strategy.md](testing/strategy.md) | Test pyramid, coverage, the Cucumber scenarios of the business rules and how to run the suites |
+| [../features/](../features/) | The Cucumber feature files: the business rules written as readable scenarios |
 | [operations/local-development.md](operations/local-development.md) | Running the whole stack on a laptop |
 | [operations/runbook.md](operations/runbook.md) | Deploy, migrate, seed, rollback and troubleshoot |
 | [operations/costs.md](operations/costs.md) | Estimated AWS cost and how to stay inside the free tier |

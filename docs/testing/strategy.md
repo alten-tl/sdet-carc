@@ -3,6 +3,37 @@
 The tests are part of the architecture: they are what proves that the
 contracts, the domain rules and the boundaries hold.
 
+## What is Cucumber, in plain language
+
+[Cucumber](https://cucumber.io/) executes **scenarios written in Gherkin**, a
+small language that reads like English:
+
+```gherkin
+Scenario: Reject an appointment when the exact time slot is already taken
+  Given an appointment scheduled on "2026-01-20" at "10:00"
+  When the client schedules an appointment on "2026-01-20" at "10:00"
+  Then the response status is 409
+  And the response error code is "SLOT_NOT_AVAILABLE"
+```
+
+- **Given** is the starting situation: the data that already exists.
+- **When** is the action: the request the client makes.
+- **Then** is the expected result: what the client gets back.
+
+The value for the business is that **whoever knows the rules can read and
+write these scenarios**: a workshop coordinator, a product owner or a client
+can check that the system behaves as agreed without reading any code. The
+value for the engineering is that the same scenarios run automatically on
+every push, so a rule cannot break silently.
+
+| Suite | Scenarios | Executed against | Command |
+| --- | --- | --- | --- |
+| Domain BDD | `features/domain/` | The domain rules, with no infrastructure | `pnpm test:bdd:domain` |
+| Acceptance BDD | `features/appointments/` | The real HTTP API, the real Lambda handler and a real PostgreSQL | `pnpm test:bdd:acceptance` |
+
+The acceptance suite starts PostgreSQL with testcontainers, so it needs neither
+a local database nor an AWS account.
+
 ```mermaid
 flowchart TB
     subgraph pyramid["The pyramid of this project"]
@@ -96,12 +127,12 @@ sequenceDiagram
 
 | Feature | What it covers |
 | --- | --- |
-| `features/appointments/scheduling.feature` | Create, list, reject a taken slot, reschedule, cancel |
-| `features/appointments/listing.feature` | The listing by date and its empty case |
-| `features/appointments/rescheduling.feature` | The update of the date and the hour, and its rejections |
-| `features/appointments/cancellation.feature` | The cancellation, the status change and the freed slot |
-| `features/appointments/slot-constraint.feature` | The exclusion constraint of the database, at the repository level |
-| `features/domain/slot-availability.feature` | The slot rules, without any infrastructure |
+| [`features/appointments/scheduling.feature`](../../features/appointments/scheduling.feature) | Create, list, reject a taken slot, reschedule, cancel |
+| [`features/appointments/listing.feature`](../../features/appointments/listing.feature) | The listing by date and its empty case |
+| [`features/appointments/rescheduling.feature`](../../features/appointments/rescheduling.feature) | The update of the date and the hour, and its rejections |
+| [`features/appointments/cancellation.feature`](../../features/appointments/cancellation.feature) | The cancellation, the status change and the freed slot |
+| [`features/appointments/slot-constraint.feature`](../../features/appointments/slot-constraint.feature) | The exclusion constraint of the database, at the repository level |
+| [`features/domain/slot-availability.feature`](../../features/domain/slot-availability.feature) | The slot rules, without any infrastructure |
 
 ## The concurrency guarantee
 
